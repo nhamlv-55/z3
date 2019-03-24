@@ -117,10 +117,24 @@ tactic * mk_lra_tactic(ast_manager & m, params_ref const & p) {
 }
 
 tactic * mk_lia_tactic(ast_manager & m, params_ref const & p) {
-    return mk_lra_tactic(m, p);
+  return mk_lra_tactic(m, p);
 }
 
 tactic * mk_lira_tactic(ast_manager & m, params_ref const & p) {
-    return mk_lra_tactic(m, p);
+  return mk_lra_tactic(m, p);
+}
+
+tactic * mk_nham_tactic(ast_manager & m, params_ref const & p) {
+  tactic * st = and_then(mk_quant_preprocessor(m),
+                         mk_qe_lite_tactic(m, p),
+                         cond(mk_has_quantifier_probe(), 
+                              cond(mk_is_lira_probe(),
+                                   or_else(mk_qsat_tactic(m, p),
+                                           and_then(mk_qe_tactic(m), mk_smt_tactic())),
+                                   mk_smt_tactic()),
+                              mk_smt_tactic()));
+  st->updt_params(p);
+  return st;
+
 }
 
