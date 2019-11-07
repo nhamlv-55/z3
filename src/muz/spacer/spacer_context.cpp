@@ -3057,7 +3057,7 @@ lbool context::solve_core (unsigned from_lvl)
         m_stats.m_max_depth = std::max(m_stats.m_max_depth, lvl);
         IF_VERBOSE(1,verbose_stream() << "Entering level "<< lvl << "\n";);
 
-        STRACE("spacer_progress", tout << "\n* LEVEL " << lvl << "\n";);
+        STRACE("spacer_progress", tout << "\n* LEVEL " << lvl << "\n\n";);
         IF_VERBOSE(1,
                    if (m_params.print_statistics()) {
                        statistics st;
