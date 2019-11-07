@@ -3556,7 +3556,7 @@ bool context::propagate(unsigned min_prop_lvl,
     if (m_simplify_formulas_pre) {
         simplify_formulas();
     }
-    STRACE ("spacer_progress", tout << "Propagating\n";);
+    STRACE ("spacer_progress", tout << "Propagating\n\n";);
 
     IF_VERBOSE (1, verbose_stream () << "Propagating: " << std::flush;);
 
