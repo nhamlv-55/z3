@@ -959,7 +959,7 @@ void pred_transformer::add_lemma_core(lemma* lemma, bool ground_only)
             tout << "** add-lemma: "
             << pp_level (lvl) << " "
             << "exprID: " << lemma->get_expr()->get_id() << " "
-            << "pobID: " << pobID << " "
+            << "pobID: " << pobID << "\n"
             << head ()->get_name () << " "
             << mk_epp (l, m) << "\n";
 
@@ -3309,11 +3309,15 @@ lbool context::expand_pob(pob& n, pob_ref_buffer &out)
            << " fvsz: " << n.get_free_vars_size() << "\n"
            << mk_pp(n.post(), m) << "\n";);
 
+    unsigned pobID = -1;
+    if(n.parent())
+      pobID = n.parent()->post()->get_id();
     STRACE ("spacer_progress",
             tout << "** expand-pob: " << n.pt().head()->get_name()
             << " level: " << n.level()
             << " depth: " << (n.depth () - m_pob_queue.min_depth ())
             << " exprID: " << n.post()->get_id()
+            << " pobID: " << pobID
             << "\n"
             << mk_epp(n.post(), m) << "\n\n";);
 
