@@ -944,7 +944,6 @@ void pred_transformer::add_lemma_core(lemma* lemma, bool ground_only)
     SASSERT(!is_quantifier(l) || is_clause(m, to_quantifier(l)->get_expr()));
 
     get_context().log_add_lemma(*this, *lemma);
-
     if (is_infty_level(lvl)) { m_stats.m_num_invariants++; }
 
     if (lemma->is_ground()) {
@@ -3361,6 +3360,7 @@ lbool context::expand_pob(pob& n, pob_ref_buffer &out)
     pob::on_expand_event _evt(n);
 
     log_expand_pob(n);
+
 
     stopwatch watch;
     IF_VERBOSE (1, verbose_stream () << "expand: " << n.pt ().head ()->get_name ()
