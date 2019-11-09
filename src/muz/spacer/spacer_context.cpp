@@ -3073,8 +3073,8 @@ void context::log_propagate() {
 
 void context::log_expand_pob(pob &n) {
     if (m_trace_stream) {
-        unsigned pob_id= -1;
-        if (n.parent()) pob_id = n.parent()->post()->get_id();
+        std::string pob_id = "none";
+        if (n.parent()) pob_id = std::to_string(n.parent()->post()->get_id());
 
         *m_trace_stream << "** expand-pob: " << n.pt().head()->get_name()
                         << " level: " << n.level()
@@ -3099,9 +3099,9 @@ void context::log_expand_pob(pob &n) {
 void context::log_add_lemma(pred_transformer &pt, lemma &new_lemma) {
     unsigned lvl = new_lemma.level();
     expr *fml = new_lemma.get_expr();
-    unsigned pob_id = -1;
+    std::string pob_id = "none";
     if (new_lemma.get_pob())
-        pob_id = new_lemma.get_pob()->post()->get_id();
+        pob_id = std::to_string(new_lemma.get_pob()->post()->get_id());
     if (m_trace_stream) {
         *m_trace_stream << "** add-lemma: "
                         << pp_level(lvl) << " "
