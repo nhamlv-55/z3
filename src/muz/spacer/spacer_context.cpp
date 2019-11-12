@@ -945,6 +945,7 @@ void pred_transformer::add_lemma_core(lemma* lemma, bool ground_only)
 
     get_context().log_add_lemma(*this, *lemma);
 
+
     if (is_infty_level(lvl)) { m_stats.m_num_invariants++; }
 
     if (lemma->is_ground()) {
@@ -2094,6 +2095,17 @@ bool pred_transformer::frames::propagate_to_next_level (unsigned level)
         unsigned solver_level;
         if (m_pt.is_invariant(tgt_level, m_lemmas.get(i), solver_level)) {
             m_lemmas [i]->set_level (solver_level);
+
+            expr* l = m_lemmas.get(i)->get_expr();
+            TRACE("spacer_nham_trace", tout << "trying to propagate this lemma: "
+                  << mk_pp (l, m_pt.get_ast_manager()) << "\n";
+                  );
+            if(m_lemmas.get(i)->is_ugly()){
+              TRACE("spacer_nham_trace", tout << "trying to propagate this lemma: "
+                    << mk_pp (l, m_pt.get_ast_manager()) << "\n";
+                    );
+              continue;
+            }
             m_pt.add_lemma_core (m_lemmas.get(i));
 
             // percolate the lemma up to its new place
@@ -2319,6 +2331,7 @@ void context::updt_params() {
     m_simplify_pob = m_params.spacer_simplify_pob();
     m_use_euf_gen = m_params.spacer_use_euf_gen();
     m_use_lim_num_gen = m_params.spacer_use_lim_num_gen();
+    m_use_snap_val_gen = m_params.spacer_use_snap_val_gen();
     m_use_ctp = m_params.spacer_ctp();
     m_use_inc_clause = m_params.spacer_use_inc_clause();
     m_blast_term_ite_inflation = m_params.spacer_blast_term_ite_inflation();
@@ -2667,11 +2680,17 @@ void context::init_lemma_generalizers()
     if (m_use_ind_gen) {
         m_lemma_generalizers.push_back(alloc(lemma_bool_inductive_generalizer, *this, 0));
     }
-
+    // shamelessly reused use_lim_num_gen code
+    if (m_use_snap_val_gen) {
+      m_lemma_generalizers.push_back(alloc(snap_val_generalizer, *this, 5));
+    }
     // after the lemma is minimized (maybe should also do before)
     if (m_use_lim_num_gen) {
         m_lemma_generalizers.push_back(alloc(limit_num_generalizer, *this, 5));
     }
+
+    
+
 
 
     if (m_use_array_eq_gen) {

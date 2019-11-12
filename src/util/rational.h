@@ -423,6 +423,8 @@ public:
     }
 
     static bool limit_denominator(rational &num, rational const& limit);
+
+    static bool snap_val(rational &num, int const sticky_point, double const epsilon);
 };
 
 inline bool operator!=(rational const & r1, rational const & r2) { 

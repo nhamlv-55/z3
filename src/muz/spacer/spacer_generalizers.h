@@ -182,6 +182,36 @@ class limit_num_generalizer : public lemma_generalizer {
     void collect_statistics(statistics &st) const override;
     void reset_statistics() override { m_st.reset(); }
 };
+
+/* To snap values to a sticky points */
+class snap_val_generalizer : public lemma_generalizer {
+
+    struct stats {
+        unsigned count;
+        unsigned num_failures;
+        stopwatch watch;
+        stats() { reset(); }
+        void reset() {
+            count = 0;
+            num_failures = 0;
+            watch.reset();
+        }
+    };
+
+    unsigned m_failure_limit;
+    stats m_st;
+
+    bool snap_vals(expr_ref_vector &lits, int sticky_point, double epsilon);
+
+public:
+    snap_val_generalizer(context &ctx, unsigned failure_limit);
+    ~snap_val_generalizer() override {}
+
+    void operator()(lemma_ref &lemma) override;
+
+    void collect_statistics(statistics &st) const override;
+    void reset_statistics() override { m_st.reset(); }
+};
 } // namespace spacer
 
 #endif

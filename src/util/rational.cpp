@@ -130,3 +130,10 @@ bool rational::limit_denominator(rational &num, rational const& limit) {
     return false;
 }
 
+bool rational::snap_val(rational &num, int const sticky_point, double const epsilon){
+    if (abs(num.get_double()-sticky_point) < epsilon){
+        num = sticky_point/ 1;
+        return true;
+    }
+    return false;
+}
