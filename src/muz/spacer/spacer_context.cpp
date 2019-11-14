@@ -2096,23 +2096,26 @@ bool pred_transformer::frames::propagate_to_next_level (unsigned level)
         if (m_pt.is_invariant(tgt_level, m_lemmas.get(i), solver_level)) {
             m_lemmas [i]->set_level (solver_level);
 
-            expr* l = m_lemmas.get(i)->get_expr();
+            expr* l = m_lemmas[i]->get_expr();
             TRACE("spacer_nham_trace", tout << "trying to propagate this lemma: "
-                  << mk_pp (l, m_pt.get_ast_manager()) << "\n";
+                  << mk_pp (l, m_pt.get_ast_manager()) << "\n"
+                  << "is ugly:" << m_lemmas[i]->is_ugly() << "\n";
                   );
-            if(m_lemmas.get(i)->is_ugly()){
-              TRACE("spacer_nham_trace", tout << "trying to propagate this lemma: "
+            if(m_lemmas[i]->is_ugly()){
+              TRACE("spacer_nham_trace", tout << "ugly af: "
                     << mk_pp (l, m_pt.get_ast_manager()) << "\n";
                     );
               continue;
-            }
-            m_pt.add_lemma_core (m_lemmas.get(i));
+            }else{
+              m_pt.add_lemma_core (m_lemmas.get(i));
 
-            // percolate the lemma up to its new place
-            for (unsigned j = i; (j+1) < sz && m_lt (m_lemmas[j+1], m_lemmas[j]); ++j) {
+              // percolate the lemma up to its new place
+              for (unsigned j = i; (j+1) < sz && m_lt (m_lemmas[j+1], m_lemmas[j]); ++j) {
                 m_lemmas.swap(j, j + 1);
+              }
+              ++m_pt.m_stats.m_num_propagations;
+ 
             }
-            ++m_pt.m_stats.m_num_propagations;
         } else {
             all = false;
             ++i;
@@ -2686,12 +2689,10 @@ void context::init_lemma_generalizers()
     }
     // after the lemma is minimized (maybe should also do before)
     if (m_use_lim_num_gen) {
-        m_lemma_generalizers.push_back(alloc(limit_num_generalizer, *this, 5));
+        m_lemma_generalizers.push_back(alloc(limit_num_generalizer, *this, 3));
     }
 
-    
-
-
+    // set ugly bit in lemma
 
     if (m_use_array_eq_gen) {
         m_lemma_generalizers.push_back(alloc(lemma_array_eq_generalizer, *this));

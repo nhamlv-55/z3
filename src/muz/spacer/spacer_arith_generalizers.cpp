@@ -123,7 +123,8 @@ void limit_num_generalizer::operator()(lemma_ref &lemma) {
                 TRACE("spacer.limnum", tout << "Failed to generalize: "
                       << lemma->get_cube()
                       << "\ninto\n"
-                      << cube << "\n";);
+                      << cube << "\n. Set to ugly.\n";);
+                lemma->set_ugly(true);
                 break;
             }
         }
@@ -143,6 +144,11 @@ void limit_num_generalizer::operator()(lemma_ref &lemma) {
         // increase limit
         limit = limit * 10;
     }
+    lemma->set_ugly(true);
+    TRACE("spacer_nham_trace", tout << "Failed to generalize: "
+          << lemma->get_cube()
+          << "\n. Set to ugly.\n";);
+
 }
 
 void limit_num_generalizer::collect_statistics(statistics &st) const {
