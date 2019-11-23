@@ -129,7 +129,7 @@ class lemma {
     unsigned m_external:1;    // external lemma from another solver
     unsigned m_blocked:1;     // blocked by CTP
     unsigned m_background:1;  // background assumed fact
-    unsigned m_is_ugly:1;
+    bool m_is_ugly = false;
 
 
     void mk_expr_core();
