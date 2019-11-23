@@ -103,59 +103,53 @@ void snap_val_generalizer::operator()(lemma_ref &lemma) {
     SASSERT(lemma->has_pob());
     sol->assert_expr(lemma->get_pob()->post());
     unsigned weakness = lemma->weakness();
-    //    rational limit(100);
-    for (unsigned num_failures = 0; num_failures < m_failure_limit;
-         ++num_failures) {
-        cube.reset();
-        cube.append(lemma->get_cube());
-        // try to limit denominators
-        //        if (!limit_denominators(cube, limit)) return;
-        // try to snap coefficient
-        if(!snap_vals(cube, sticky_point, epsilon)) return;
-        bool failed = false;
-        // check that pob->post() ==> cube
-        for (auto *lit : cube) {
-            solver::scoped_push _p_(*sol);
-            expr_ref nlit(m);
-            nlit = m.mk_not(lit);
-            sol->assert_expr(nlit);
-            lbool res = sol->check_sat(0, nullptr);
-            if (res == l_false) {
-                // good
-              TRACE("spacer.snap", tout << "Successfully generalize: "
+    cube.reset();
+    cube.append(lemma->get_cube());
+    // try to limit denominators
+    //        if (!limit_denominators(cube, limit)) return;
+    // try to snap coefficient
+    if(!snap_vals(cube, sticky_point, epsilon)) return;
+    bool failed = false;
+    // check that pob->post() ==> cube
+    for (auto *lit : cube) {
+        solver::scoped_push _p_(*sol);
+        expr_ref nlit(m);
+        nlit = m.mk_not(lit);
+        sol->assert_expr(nlit);
+        lbool res = sol->check_sat(0, nullptr);
+        if (res == l_false) {
+            // good
+            TRACE("spacer.snap", tout << "Successfully generalize: "
+                << lemma->get_cube()
+                << "\ninto\n"
+                << cube << "\n";);
+        } else {
+            failed = true;
+            TRACE("spacer.snap", tout << "Failed to generalize: "
                     << lemma->get_cube()
                     << "\ninto\n"
                     << cube << "\n";);
-            } else {
-                failed = true;
-                TRACE("spacer.snap", tout << "Failed to generalize: "
-                      << lemma->get_cube()
-                      << "\ninto\n"
-                      << cube << "\n";);
-                break;
-            }
+            break;
         }
-
-        // check that !cube & F & Tr ==> !cube'
-        if (!failed && pt.check_inductive(lemma->level(), cube, uses_level, weakness)) {
-            TRACE("spacer",
-                  tout << "Reduced fractions from:\n"
-                  << lemma->get_cube() << "\n\nto\n"
-                  << cube << "\n";);
-            lemma->update_cube(lemma->get_pob(), cube);
-            lemma->set_level(uses_level);
-            // done
-            return;
-        }
-        ++m_st.num_failures;
-        // increase limit
-        //limit = limit * 10;
     }
+
+    // check that !cube & F & Tr ==> !cube'
+    if (!failed && pt.check_inductive(lemma->level(), cube, uses_level, weakness)) {
+        TRACE("spacer",
+                tout << "Reduced fractions from:\n"
+                << lemma->get_cube() << "\n\nto\n"
+                << cube << "\n";);
+        lemma->update_cube(lemma->get_pob(), cube);
+        lemma->set_level(uses_level);
+        // done
+        return;
+    }
+    ++m_st.num_failures;
 }
 
 void snap_val_generalizer::collect_statistics(statistics &st) const {
-    st.update("time.spacer.solve.reach.gen.lim_num", m_st.watch.get_seconds());
-    st.update("limitted num gen", m_st.count);
-    st.update("limitted num gen failures", m_st.num_failures);
+    st.update("time.spacer.solve.reach.gen.snap_val", m_st.watch.get_seconds());
+    st.update("snap val", m_st.count);
+    st.update("snap val failures", m_st.num_failures);
 }
 } // namespace spacer
