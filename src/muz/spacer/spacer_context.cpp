@@ -495,6 +495,7 @@ lemma::lemma (ast_manager &manager, expr * body, unsigned lvl) :
     m_bumped(0), m_weakness(WEAKNESS_MAX),
     m_external(false), m_blocked(false),
     m_background(false) {
+  
     SASSERT(m_body);
     normalize(m_body, m_body);
 }
@@ -2101,10 +2102,11 @@ bool pred_transformer::frames::propagate_to_next_level (unsigned level)
                   << mk_pp (l, m_pt.get_ast_manager()) << "\n"
                   << "is ugly:" << m_lemmas[i]->is_ugly() << "\n";
                   );
-            if(m_lemmas[i]->is_ugly()){
+            if(!m_pt.ctx.m_propagate_ugly && m_lemmas[i]->is_ugly()){
               TRACE("spacer_nham_trace", tout << "ugly af: "
                     << mk_pp (l, m_pt.get_ast_manager()) << "\n";
                     );
+              all = false;
               continue;
             }else{
               m_pt.add_lemma_core (m_lemmas.get(i));
@@ -2295,12 +2297,17 @@ context::context(fp_params const& params, ast_manager& m) :
     m_expanded_lvl(0),
     m_json_marshaller(this),
     m_trace_stream(nullptr) {
+
+    params_ref p;
+    p.set_uint("arith.solver", params.spacer_arith_solver());
+
+
     ref<solver> pool0_base =
-        mk_smt_solver(m, params_ref::get_empty(), symbol::null);
+      mk_smt_solver(m, p, params.spacer_logic());
     ref<solver> pool1_base =
-        mk_smt_solver(m, params_ref::get_empty(), symbol::null);
+      mk_smt_solver(m, p, params.spacer_logic());
     ref<solver> pool2_base =
-        mk_smt_solver(m, params_ref::get_empty(), symbol::null);
+      mk_smt_solver(m, p, params.spacer_logic());
 
     unsigned max_num_contexts = params.spacer_max_num_contexts();
     m_pool0 = alloc(solver_pool, pool0_base.get(), max_num_contexts);
@@ -2335,6 +2342,7 @@ void context::updt_params() {
     m_use_euf_gen = m_params.spacer_use_euf_gen();
     m_use_lim_num_gen = m_params.spacer_use_lim_num_gen();
     m_use_snap_val_gen = m_params.spacer_use_snap_val_gen();
+    m_propagate_ugly = m_params.spacer_propagate_ugly();
     m_use_ctp = m_params.spacer_ctp();
     m_use_inc_clause = m_params.spacer_use_inc_clause();
     m_blast_term_ite_inflation = m_params.spacer_blast_term_ite_inflation();
@@ -3108,11 +3116,15 @@ void context::log_expand_pob(pob &n) {
                          << " depth: " << (n.depth() - m_pob_queue.min_depth())
                          << " fvsz: " << n.get_free_vars_size() << "\n"
                          << mk_pp(n.post(), m) << "\n";);
+    std::string pob_id = "none";
+    if (n.parent()) pob_id = std::to_string(n.parent()->post()->get_id());
+
 
     STRACE("spacer_progress",
            tout << "** expand-pob: " << n.pt().head()->get_name()
                 << " level: " << n.level()
                 << " depth: " << (n.depth() - m_pob_queue.min_depth()) << "\n"
+           << " exprID: " << n.post()->get_id() << " pobID: " << pob_id << "\n"
                 << mk_epp(n.post(), m) << "\n\n";);
 }
 
