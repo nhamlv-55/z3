@@ -3139,7 +3139,7 @@ void context::log_add_lemma(pred_transformer &pt, lemma &new_lemma) {
                         << pp_level(lvl) << " "
                         << "exprID: " << fml->get_id() << " "
                         << "pobID: " << pob_id << "\n"
-                        << pt.head()->get_name() << " "
+                        << pt.head()->get_name() << "\n"
                         << mk_epp(fml, m) << "\n";
         if (!new_lemma.is_ground()) {
             *m_trace_stream << "Bindings: " << new_lemma.get_bindings()
