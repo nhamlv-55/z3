@@ -2082,8 +2082,7 @@ bool pred_transformer::frames::propagate_to_next_level (unsigned level)
     sort ();
     bool all = true;
 
-
-    if (m_lemmas.empty()) { return all; }
+    if (m_lemmas.empty()) { return true; }
 
     unsigned tgt_level = next_level (level);
     m_pt.ensure_level (tgt_level);
@@ -2092,23 +2091,13 @@ bool pred_transformer::frames::propagate_to_next_level (unsigned level)
         if (m_lemmas [i]->level () < level) {++i; continue;}
 
         unsigned solver_level;
-        if (m_pt.is_invariant(tgt_level, m_lemmas.get(i), solver_level)) {
+        if ((!m_lemmas[i]->is_ugly() || m_pt.ctx.m_propagate_ugly) &&
+            m_pt.is_invariant(tgt_level, m_lemmas.get(i), solver_level)) {
             m_lemmas [i]->set_level (solver_level);
-
-            expr* l = m_lemmas.get(i)->get_expr();
-            TRACE("spacer_nham_trace", tout << "trying to propagate this lemma: "
-                  << mk_pp (l, m_pt.get_ast_manager()) << "\n";
-                  );
-            if(m_lemmas.get(i)->is_ugly()){
-              TRACE("spacer_nham_trace", tout << "trying to propagate this lemma: "
-                    << mk_pp (l, m_pt.get_ast_manager()) << "\n";
-                    );
-              continue;
-            }
             m_pt.add_lemma_core (m_lemmas.get(i));
-
             // percolate the lemma up to its new place
-            for (unsigned j = i; (j+1) < sz && m_lt (m_lemmas[j+1], m_lemmas[j]); ++j) {
+            for (unsigned j = i;
+                 (j + 1) < sz && m_lt(m_lemmas[j + 1], m_lemmas[j]); ++j) {
                 m_lemmas.swap(j, j + 1);
             }
             ++m_pt.m_stats.m_num_propagations;
@@ -2335,6 +2324,7 @@ void context::updt_params() {
     m_use_euf_gen = m_params.spacer_use_euf_gen();
     m_use_lim_num_gen = m_params.spacer_use_lim_num_gen();
     m_use_snap_val_gen = m_params.spacer_use_snap_val_gen();
+    m_propagate_ugly = m_params.spacer_propagate_ugly();
     m_use_ctp = m_params.spacer_ctp();
     m_use_inc_clause = m_params.spacer_use_inc_clause();
     m_blast_term_ite_inflation = m_params.spacer_blast_term_ite_inflation();
@@ -2689,9 +2679,10 @@ void context::init_lemma_generalizers()
     }
     // after the lemma is minimized (maybe should also do before)
     if (m_use_lim_num_gen) {
-        m_lemma_generalizers.push_back(alloc(limit_num_generalizer, *this, 5));
+        m_lemma_generalizers.push_back(alloc(limit_num_generalizer, *this, 3));
     }
 
+    // set ugly bit in lemma
 
     if (m_use_array_eq_gen) {
         m_lemma_generalizers.push_back(alloc(lemma_array_eq_generalizer, *this));
