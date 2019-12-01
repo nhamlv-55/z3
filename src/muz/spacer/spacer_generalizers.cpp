@@ -61,6 +61,8 @@ namespace{
 /// Inductive generalization by dropping and expanding literals
 void lemma_bool_inductive_generalizer::operator()(lemma_ref &lemma) {
     if (lemma->get_cube().empty()) return;
+    STRACE("spacer.ind_gen", tout<<"LEMMA:\n"<<mk_and(lemma->get_cube())<<"\n";);
+    STRACE("spacer.ind_gen", tout<<"POB:\n"<<lemma->get_pob()<<"\n";);       
 
     m_st.count++;
     scoped_watch _w_(m_st.watch);
@@ -85,22 +87,31 @@ void lemma_bool_inductive_generalizer::operator()(lemma_ref &lemma) {
     unsigned i = 0, num_failures = 0;
     while (i < cube.size() &&
            (!m_failure_limit || num_failures < m_failure_limit)) {
+        std::time_t start = std::time(nullptr);
         expr_ref lit(m);
         lit = cube.get(i);
+        
         if (m_array_only && !has_arrays(lit)) {
             processed.push_back(lit);
             ++i;
             continue;
         }
+        STRACE("spacer.ind_gen", tout<<"CUBE:\n"<<mk_and(cube)<<"\n";);       
+        STRACE("spacer.ind_gen", tout<<"trying to drop \n:"<<lit<<"\n";);
         cube[i] = true_expr;
+
         if (cube.size() > 1 &&
             pt.check_inductive(lemma->level(), cube, uses_level, weakness)) {
+            std::time_t after_check_ind = std::time(nullptr);
+            TRACE("spacer.ind_gen", tout<<"\tpassed check_ind in:"<<after_check_ind - start <<"\n";);
             num_failures = 0;
             dirty = true;
             for (i = 0; i < cube.size() &&
                      processed.contains(cube.get(i)); ++i);
         } else {
-            // check if the literal can be expanded and any single
+            std::time_t after_check_ind = std::time(nullptr);
+            TRACE("spacer.ind_gen", tout<<"\tfailed check_ind in:"<<after_check_ind - start <<"\n";);
+             // check if the literal can be expanded and any single bb
             // literal in the expansion can replace it
             extra_lits.reset();
             extra_lits.push_back(lit);
@@ -127,17 +138,20 @@ void lemma_bool_inductive_generalizer::operator()(lemma_ref &lemma) {
                 ++m_st.num_failures;
                 ++i;
             }
-        }
+            std::time_t after_expand_lits = std::time(nullptr);
+            TRACE("spacer.ind_gen", tout<<"\t\tfinished expand lit in:"<<after_expand_lits - after_check_ind <<"\n";);
+         }
     }
 
     if (dirty) {
         TRACE("spacer",
                tout << "Generalized from:\n" << mk_and(lemma->get_cube())
                << "\ninto\n" << mk_and(cube) << "\n";);
-
         lemma->update_cube(lemma->get_pob(), cube);
         SASSERT(uses_level >= lemma->level());
         lemma->set_level(uses_level);
+        //lemma->get_expr() is scary. Comment out the following line for now
+        //TRACE("spacer.ind_gen", tout<<"SUCCESS. new lemma:"<<lemma->get_expr()->get_id()<<"\n";);
     }
 }
 
