@@ -964,6 +964,7 @@ class context {
     bool                 m_use_euf_gen;
     bool                 m_use_lim_num_gen;
     bool m_use_snap_val_gen;
+    bool m_propagate_ugly;
     bool                 m_use_ctp;
     bool                 m_use_inc_clause;
     bool                 m_use_ind_gen;
@@ -1074,6 +1075,7 @@ public:
     bool use_euf_gen() const {return m_use_euf_gen;}
     bool use_lim_num_gen() const {return m_use_lim_num_gen;}
     bool use_snap_val_gen() const {return m_use_snap_val_gen;}
+    bool propagate_ugly() const {return m_propagate_ugly;}
     bool simplify_pob() const {return m_simplify_pob;}
     bool use_ctp() const {return m_use_ctp;}
     bool use_inc_clause() const {return m_use_inc_clause;}
