@@ -101,7 +101,7 @@ void lemma_bool_inductive_generalizer::operator()(lemma_ref &lemma) {
         cube[i] = true_expr;
 
         if (cube.size() > 1 &&
-            pt.check_inductive(lemma->level(), cube, uses_level, weakness)) {
+            pt.check_inductive(lemma->level(), cube, uses_level, weakness, true)) {
             std::time_t after_check_ind = std::time(nullptr);
             TRACE("spacer.ind_gen", tout<<"\tpassed check_ind in:"<<after_check_ind - start <<"\n";);
             num_failures = 0;
