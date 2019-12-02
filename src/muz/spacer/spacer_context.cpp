@@ -1538,7 +1538,7 @@ bool pred_transformer::is_invariant(unsigned level, lemma* lem,
 }
 
 bool pred_transformer::check_inductive(unsigned level, expr_ref_vector& state,
-                                       unsigned& uses_level, unsigned weakness)
+                                       unsigned& uses_level, unsigned weakness, bool dump_query)
 {
     expr_ref_vector conj(m), core(m);
     expr_ref states(m);
@@ -1556,7 +1556,7 @@ bool pred_transformer::check_inductive(unsigned level, expr_ref_vector& state,
     conj.push_back (m_extend_lit);
     lbool res = m_solver->check_assumptions (state, aux,
                                             m_transition_clause,
-                                            conj.size (), conj.c_ptr (), 1);
+                                             conj.size (), conj.c_ptr (), 1, dump_query);
     if (res == l_false) {
         state.reset();
         state.append(core);

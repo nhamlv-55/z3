@@ -549,7 +549,7 @@ public:
     }
 
     bool check_inductive(unsigned level, expr_ref_vector& state,
-                         unsigned& assumes_level, unsigned weakness = UINT_MAX);
+                         unsigned& assumes_level, unsigned weakness = UINT_MAX, bool dump_query = false);
 
     expr_ref get_formulas(unsigned level, bool bg = false) const;
 

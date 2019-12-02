@@ -110,7 +110,8 @@ public:
                             const expr_ref_vector &clause,
                             unsigned num_bg = 0,
                             expr * const *bg = nullptr,
-                            unsigned solver_id = 0);
+                            unsigned solver_id = 0,
+                            bool dump_query = false);
 
     void collect_statistics(statistics& st) const;
     void reset_statistics();

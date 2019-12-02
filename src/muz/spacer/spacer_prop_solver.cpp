@@ -356,7 +356,8 @@ lbool prop_solver::check_assumptions(const expr_ref_vector & _hard,
                                      expr_ref_vector& soft,
                                      const expr_ref_vector &clause,
                                      unsigned num_bg, expr * const * bg,
-                                     unsigned solver_id)
+                                     unsigned solver_id,
+                                     bool dump_query)
 {
     expr_ref cls(m);
     // current clients expect that flattening of HARD  is
@@ -369,6 +370,19 @@ lbool prop_solver::check_assumptions(const expr_ref_vector & _hard,
 
     m_ctx = m_contexts [solver_id == 0 ? 0 : 0 /* 1 */].get();
 
+    double dump_threshold = -1;
+    
+
+    if(dump_query){
+        STRACE("spacer.ind_gen", tout<<"DUMP QUERY = TRUE\n";);
+        //set dump_threshold to dump inductive gen query
+        params_ref p;
+        //save original value
+        dump_threshold = p.get_double("dump_threshold", 15);
+        p.set_double("dump_threshold", 0.00001);
+        STRACE("spacer.ind_gen", tout << "OLD THRES:"<< dump_threshold<<"\n";);
+        m_ctx->updt_params(p);
+    }
     // can be disabled if use_push_bg == true
     // solver::scoped_push _s_(*m_ctx);
     if (!m_use_push_bg) {m_ctx->push();}
@@ -400,6 +414,12 @@ lbool prop_solver::check_assumptions(const expr_ref_vector & _hard,
     m_core = nullptr;
     m_model = nullptr;
     m_subset_based_core = false;
+    if(dump_query){
+        //set dump_threshold to dump inductive gen query
+        params_ref p = m_ctx->get_params();
+        p.set_double("dump_threshold", dump_threshold);
+        m_ctx->updt_params(p);
+    }
     return res;
 }
 
