@@ -54,12 +54,13 @@ class lemma_bool_inductive_generalizer : public lemma_generalizer {
     unsigned m_failure_limit;
     bool m_array_only;
     stats m_st;
-
+    bool m_use_expansion; // whether to try literal expansion or not. Default = True
   public:
     lemma_bool_inductive_generalizer(context &ctx, unsigned failure_limit,
-                                     bool array_only = false)
+                                     bool use_expansion = true,
+                                     bool array_only = false )
         : lemma_generalizer(ctx), m_failure_limit(failure_limit),
-          m_array_only(array_only) {}
+          m_array_only(array_only), m_use_expansion(use_expansion) {}
     ~lemma_bool_inductive_generalizer() override {}
     void operator()(lemma_ref &lemma) override;
 

@@ -2329,6 +2329,7 @@ void context::updt_params() {
     m_use_inc_clause = m_params.spacer_use_inc_clause();
     m_blast_term_ite_inflation = m_params.spacer_blast_term_ite_inflation();
     m_use_ind_gen = m_params.spacer_use_inductive_generalizer();
+    m_use_expansion = m_params.spacer_use_expansion();
     m_use_array_eq_gen = m_params.spacer_use_array_eq_generalizer();
     m_validate_lemmas = m_params.spacer_validate_lemmas();
     m_max_level = m_params.spacer_max_level ();
@@ -2671,7 +2672,7 @@ void context::init_lemma_generalizers()
     //m_lemma_generalizers.push_back (alloc (unsat_core_generalizer, *this));
 
     if (m_use_ind_gen) {
-        m_lemma_generalizers.push_back(alloc(lemma_bool_inductive_generalizer, *this, 0));
+        m_lemma_generalizers.push_back(alloc(lemma_bool_inductive_generalizer, *this, 0, m_use_expansion));
     }
     // shamelessly reused use_lim_num_gen code
     if (m_use_snap_val_gen) {
