@@ -64,6 +64,7 @@ void lemma_bool_inductive_generalizer::operator()(lemma_ref &lemma) {
     STRACE("spacer.ind_gen", tout<<"LEMMA:\n"<<mk_and(lemma->get_cube())<<"\n";);
     STRACE("spacer.ind_gen", tout<<"POB:\n"<<lemma->get_pob()<<"\n";);       
 
+    STRACE("spacer.ind_gen", tout<<"USE LIT EXPANSION?\n"<<m_use_expansion<<"\n";);
     m_st.count++;
     scoped_watch _w_(m_st.watch);
 
@@ -85,6 +86,9 @@ void lemma_bool_inductive_generalizer::operator()(lemma_ref &lemma) {
     unsigned weakness = lemma->weakness();
 
     unsigned i = 0, num_failures = 0;
+
+    //FOR DEBUGGING ONLY
+    pt.check_inductive(lemma->level(), cube, uses_level, weakness, true);
     while (i < cube.size() &&
            (!m_failure_limit || num_failures < m_failure_limit)) {
         std::time_t start = std::time(nullptr);
@@ -98,6 +102,7 @@ void lemma_bool_inductive_generalizer::operator()(lemma_ref &lemma) {
         }
         STRACE("spacer.ind_gen", tout<<"CUBE:\n"<<mk_and(cube)<<"\n";);       
         STRACE("spacer.ind_gen", tout<<"trying to drop \n:"<<lit<<"\n";);
+
         cube[i] = true_expr;
 
         if (cube.size() > 1 &&
@@ -113,33 +118,42 @@ void lemma_bool_inductive_generalizer::operator()(lemma_ref &lemma) {
             TRACE("spacer.ind_gen", tout<<"\tfailed check_ind in:"<<after_check_ind - start <<"\n";);
              // check if the literal can be expanded and any single bb
             // literal in the expansion can replace it
-            extra_lits.reset();
-            extra_lits.push_back(lit);
-            expand_literals(m, extra_lits);
-            SASSERT(extra_lits.size() > 0);
-            bool found = false;
-            if (extra_lits.get(0) != lit && extra_lits.size() > 1) {
-                for (unsigned j = 0, sz = extra_lits.size(); !found && j < sz; ++j) {
-                    cube[i] = extra_lits.get(j);
-                    if (pt.check_inductive(lemma->level(), cube, uses_level, weakness)) {
-                        num_failures = 0;
-                        dirty = true;
-                        found = true;
-                        processed.push_back(extra_lits.get(j));
-                        for (i = 0; i < cube.size() &&
-                                 processed.contains(cube.get(i)); ++i);
+
+            if(m_use_expansion){
+                extra_lits.reset();
+                extra_lits.push_back(lit);
+                expand_literals(m, extra_lits);
+                SASSERT(extra_lits.size() > 0);
+                bool found = false;
+                if (extra_lits.get(0) != lit && extra_lits.size() > 1) {
+                    for (unsigned j = 0, sz = extra_lits.size(); !found && j < sz; ++j) {
+                        cube[i] = extra_lits.get(j);
+                        if (pt.check_inductive(lemma->level(), cube, uses_level, weakness)) {
+                            num_failures = 0;
+                            dirty = true;
+                            found = true;
+                            processed.push_back(extra_lits.get(j));
+                            for (i = 0; i < cube.size() &&
+                                     processed.contains(cube.get(i)); ++i);
+                        }
                     }
                 }
-            }
-            if (!found) {
+                if (!found) {
+                    cube[i] = lit;
+                    processed.push_back(lit);
+                    ++num_failures;
+                    ++m_st.num_failures;
+                    ++i;
+                }
+                std::time_t after_expand_lits = std::time(nullptr);
+                TRACE("spacer.ind_gen", tout<<"\t\tfinished expand lit in:"<<after_expand_lits - after_check_ind <<"\n";);
+            }else{
                 cube[i] = lit;
                 processed.push_back(lit);
                 ++num_failures;
                 ++m_st.num_failures;
                 ++i;
             }
-            std::time_t after_expand_lits = std::time(nullptr);
-            TRACE("spacer.ind_gen", tout<<"\t\tfinished expand lit in:"<<after_expand_lits - after_check_ind <<"\n";);
          }
     }
 

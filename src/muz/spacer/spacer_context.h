@@ -968,6 +968,7 @@ class context {
     bool                 m_use_ctp;
     bool                 m_use_inc_clause;
     bool                 m_use_ind_gen;
+    bool                 m_use_expansion;
     bool                 m_use_array_eq_gen;
     bool                 m_validate_lemmas;
     bool                 m_use_propagate;
