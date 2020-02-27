@@ -3093,11 +3093,17 @@ void context::log_expand_pob(pob &n) {
                          << " fvsz: " << n.get_free_vars_size() << "\n"
                          << mk_pp(n.post(), m) << "\n";);
 
-    STRACE("spacer_progress",
-           tout << "** expand-pob: " << n.pt().head()->get_name()
-                << " level: " << n.level()
-                << " depth: " << (n.depth() - m_pob_queue.min_depth()) << "\n"
-                << mk_epp(n.post(), m) << "\n\n";);
+    STRACE("spacer_progress", {
+        std::string pob_id = "none";
+        if (n.parent()) pob_id = std::to_string(n.parent()->post()->get_id());
+
+        tout << "** expand-pob: " << n.pt().head()->get_name()
+             << " level: " << n.level()
+             << " depth: " << (n.depth() - m_pob_queue.min_depth()) << "\n"
+             << " exprID: " << n.post()->get_id() << " pobID: " << pob_id
+             << "\n"
+             << mk_epp(n.post(), m) << "\n\n";
+    });
 }
 
 void context::log_add_lemma(pred_transformer &pt, lemma &new_lemma) {
