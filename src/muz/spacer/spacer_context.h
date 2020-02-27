@@ -129,6 +129,8 @@ class lemma {
     unsigned m_external:1;    // external lemma from another solver
     unsigned m_blocked:1;     // blocked by CTP
     unsigned m_background:1;  // background assumed fact
+    unsigned m_is_ugly:1;
+
 
     void mk_expr_core();
     void mk_cube_core();
@@ -164,6 +166,10 @@ public:
 
     void set_background(bool v) {m_background = v;}
     bool is_background() {return m_background;}
+
+    void set_ugly(bool v) {m_is_ugly = v;}
+    bool is_ugly() {return m_is_ugly;}
+    
 
     bool is_blocked() {return m_blocked;}
     void set_blocked(bool v) {m_blocked=v;}
@@ -957,6 +963,7 @@ class context {
     bool                 m_simplify_pob;
     bool                 m_use_euf_gen;
     bool                 m_use_lim_num_gen;
+    bool m_use_snap_val_gen;
     bool                 m_use_ctp;
     bool                 m_use_inc_clause;
     bool                 m_use_ind_gen;
@@ -1066,6 +1073,7 @@ public:
     bool use_qlemmas() const {return m_use_qlemmas;}
     bool use_euf_gen() const {return m_use_euf_gen;}
     bool use_lim_num_gen() const {return m_use_lim_num_gen;}
+    bool use_snap_val_gen() const {return m_use_snap_val_gen;}
     bool simplify_pob() const {return m_simplify_pob;}
     bool use_ctp() const {return m_use_ctp;}
     bool use_inc_clause() const {return m_use_inc_clause;}
