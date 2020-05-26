@@ -61,10 +61,10 @@ namespace{
 /// Inductive generalization by dropping and expanding literals
 void lemma_bool_inductive_generalizer::operator()(lemma_ref &lemma) {
     if (lemma->get_cube().empty()) return;
-    STRACE("spacer.ind_gen", tout<<"LEMMA:\n"<<mk_and(lemma->get_cube())<<"\n";);
-    STRACE("spacer.ind_gen", tout<<"POB:\n"<<lemma->get_pob()<<"\n";);       
+    // STRACE("spacer.ind_gen", tout<<"LEMMA:\n"<<mk_and(lemma->get_cube())<<"\n";);
+    // STRACE("spacer.ind_gen", tout<<"POB:\n"<<lemma->get_pob()<<"\n";);       
 
-    STRACE("spacer.ind_gen", tout<<"USE LIT EXPANSION?\n"<<m_use_expansion<<"\n";);
+    // STRACE("spacer.ind_gen", tout<<"USE LIT EXPANSION?\n"<<m_use_expansion<<"\n";);
     m_st.count++;
     scoped_watch _w_(m_st.watch);
 
@@ -100,22 +100,22 @@ void lemma_bool_inductive_generalizer::operator()(lemma_ref &lemma) {
             ++i;
             continue;
         }
-        STRACE("spacer.ind_gen", tout<<"CUBE:\n"<<mk_and(cube)<<"\n";);       
-        STRACE("spacer.ind_gen", tout<<"trying to drop \n:"<<lit<<"\n";);
+        // STRACE("spacer.ind_gen", tout<<"CUBE:\n"<<mk_and(cube)<<"\n";);       
+        // STRACE("spacer.ind_gen", tout<<"trying to drop \n:"<<lit<<"\n";);
 
         cube[i] = true_expr;
 
         if (cube.size() > 1 &&
-            pt.check_inductive(lemma->level(), cube, uses_level, weakness, true)) {
+            pt.check_inductive(lemma->level(), cube, uses_level, weakness)) {
             std::time_t after_check_ind = std::time(nullptr);
-            TRACE("spacer.ind_gen", tout<<"\tpassed check_ind in:"<<after_check_ind - start <<"\n";);
+            // TRACE("spacer.ind_gen", tout<<"\tpassed check_ind in:"<<after_check_ind - start <<"\n";);
             num_failures = 0;
             dirty = true;
             for (i = 0; i < cube.size() &&
                      processed.contains(cube.get(i)); ++i);
         } else {
             std::time_t after_check_ind = std::time(nullptr);
-            TRACE("spacer.ind_gen", tout<<"\tfailed check_ind in:"<<after_check_ind - start <<"\n";);
+            // TRACE("spacer.ind_gen", tout<<"\tfailed check_ind in:"<<after_check_ind - start <<"\n";);
              // check if the literal can be expanded and any single bb
             // literal in the expansion can replace it
 
@@ -146,7 +146,7 @@ void lemma_bool_inductive_generalizer::operator()(lemma_ref &lemma) {
                     ++i;
                 }
                 std::time_t after_expand_lits = std::time(nullptr);
-                TRACE("spacer.ind_gen", tout<<"\t\tfinished expand lit in:"<<after_expand_lits - after_check_ind <<"\n";);
+                // TRACE("spacer.ind_gen", tout<<"\t\tfinished expand lit in:"<<after_expand_lits - after_check_ind <<"\n";);
             }else{
                 cube[i] = lit;
                 processed.push_back(lit);
@@ -157,8 +157,9 @@ void lemma_bool_inductive_generalizer::operator()(lemma_ref &lemma) {
          }
     }
 
-    if (dirty) {
-        TRACE("spacer",
+    // if (dirty) { //temporary disable dirty check to dump all lemmas
+    if(true){
+        TRACE("spacer.ind_gen",
                tout << "Generalized from:\n" << mk_and(lemma->get_cube())
                << "\ninto\n" << mk_and(cube) << "\n";);
         lemma->update_cube(lemma->get_pob(), cube);
