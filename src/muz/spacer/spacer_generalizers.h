@@ -68,6 +68,40 @@ class lemma_bool_inductive_generalizer : public lemma_generalizer {
     void reset_statistics() override { m_st.reset(); }
 };
 
+/**
+ * Heuristic-based Boolean inductive generalization by dropping literals
+ */
+class h_inductive_generalizer : public lemma_generalizer {
+
+  struct stats {
+    unsigned count;
+    unsigned num_failures;
+    stopwatch watch;
+    stats() { reset(); }
+    void reset() {
+      count = 0;
+      num_failures = 0;
+      watch.reset();
+    }
+  };
+
+  unsigned m_failure_limit;
+  bool m_array_only;
+  stats m_st;
+  bool m_use_expansion; // whether to try literal expansion or not. Default =
+                        // True
+public:
+  h_inductive_generalizer(context &ctx, unsigned failure_limit,
+                          bool use_expansion = true, bool array_only = false)
+      : lemma_generalizer(ctx), m_failure_limit(failure_limit),
+        m_array_only(array_only), m_use_expansion(use_expansion) {}
+  ~h_inductive_generalizer() override {}
+  void operator()(lemma_ref &lemma) override;
+
+  void collect_statistics(statistics &st) const override;
+  void reset_statistics() override { m_st.reset(); }
+};
+
 class unsat_core_generalizer : public lemma_generalizer {
     struct stats {
         unsigned count;
