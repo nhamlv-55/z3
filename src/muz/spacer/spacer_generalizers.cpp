@@ -61,7 +61,7 @@ namespace{
 /// Inductive generalization by dropping and expanding literals
 void lemma_bool_inductive_generalizer::operator()(lemma_ref &lemma) {
     if (lemma->get_cube().empty()) return;
-    // STRACE("spacer.ind_gen", tout<<"LEMMA:\n"<<mk_and(lemma->get_cube())<<"\n";);
+    TRACE("spacer.ind_gen", tout<<"LEMMA:\n"<<mk_and(lemma->get_cube())<<"\n";);
     // STRACE("spacer.ind_gen", tout<<"POB:\n"<<lemma->get_pob()<<"\n";);       
 
     // STRACE("spacer.ind_gen", tout<<"USE LIT EXPANSION?\n"<<m_use_expansion<<"\n";);
@@ -88,7 +88,7 @@ void lemma_bool_inductive_generalizer::operator()(lemma_ref &lemma) {
     unsigned i = 0, num_failures = 0;
 
     //FOR DEBUGGING ONLY
-    pt.check_inductive(lemma->level(), cube, uses_level, weakness, true);
+    // pt.check_inductive(lemma->level(), cube, uses_level, weakness, true);
     while (i < cube.size() &&
            (!m_failure_limit || num_failures < m_failure_limit)) {
         std::time_t start = std::time(nullptr);
@@ -157,8 +157,8 @@ void lemma_bool_inductive_generalizer::operator()(lemma_ref &lemma) {
          }
     }
 
-    // if (dirty) { //temporary disable dirty check to dump all lemmas
-    if(true){
+    if (dirty) { //temporary disable dirty check to dump all lemmas
+    // if(true){
         TRACE("spacer.ind_gen",
                tout << "Generalized from:\n" << mk_and(lemma->get_cube())
                << "\ninto\n" << mk_and(cube) << "\n";);
