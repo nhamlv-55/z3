@@ -111,6 +111,7 @@ public:
   void reset_statistics() override { m_st.reset(); }
     void increase_lit_count(expr_ref &lit);
     void dump_lit_count();
+    bool should_try_drop(expr_ref &lit);
 };
 
 class unsat_core_generalizer : public lemma_generalizer {

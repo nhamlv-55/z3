@@ -216,9 +216,11 @@ void h_inductive_generalizer::operator()(lemma_ref &lemma) {
       lit = cube.get(i);
       increase_lit_count(lit);
 
-      if ( m_st.count < m_threshold // if we havent seen enough lemmas, drop literals as normal
-           ||  m_lit2count[lit]>1){ // if count ==1 : this is a new lit. count > 1: not a new lit
-        cube[i] = true_expr;
+      // if ( m_st.count < m_threshold // if we havent seen enough lemmas, drop literals as normal
+           // ||  m_lit2count[lit]>1){ // if count ==1 : this is a new lit. count > 1: not a new lit
+
+      if(should_try_drop(lit)){
+          cube[i] = true_expr;
         if (cube.size() > 1 &&
             pt.check_inductive(lemma->level(), cube, uses_level, weakness)) {
           num_failures = 0;
@@ -233,7 +235,7 @@ void h_inductive_generalizer::operator()(lemma_ref &lemma) {
           ++i;
         }
       } else {
-          TRACE("spacer.h_ind_gen", tout <<
+          TRACE("spacer.h_ind_gen", tout << lit <<": "<<
                 "over threshold and is a new lit. Do not try to drop."<<"\n";);
           ++i;
       }
@@ -255,19 +257,24 @@ void h_inductive_generalizer::collect_statistics(
   st.update("bool inductive gen failures", m_st.num_failures);
 }
 
+bool h_inductive_generalizer::should_try_drop(expr_ref &lit) {
+  return ( m_st.count < m_threshold // if we havent seen enough lemmas, drop
+  // literals as normal
+           ||  m_lit2count[lit]>1); // if count ==1 : this is a new lit. count > 1:
+  // not a new lit
+}
 void h_inductive_generalizer::increase_lit_count(expr_ref &lit) {
-    if(m_lit2count.contains(lit)){
-      STRACE("spacer.h_ind_gen", tout << "LIT:" << lit << "exists."
-                                      << "\n";);
-      m_lit2count[lit]++;
-    }
-    else{
-      STRACE("spacer.h_ind_gen", tout << "LIT:" << lit
-                                      << "doesnt exist. Adding to lit2time"
-                                      << "\n";);
-      m_lit2count.insert(lit, 1);
-      m_lits.push_back(lit);
-    }
+  if (m_lit2count.contains(lit)) {
+    STRACE("spacer.h_ind_gen", tout << "LIT:" << lit << " exists."
+                                    << "\n";);
+    m_lit2count[lit]++;
+  } else {
+    STRACE("spacer.h_ind_gen", tout << "LIT:" << lit
+                                    << " doesnt exist. Adding to lit2time"
+                                    << "\n";);
+    m_lit2count.insert(lit, 1);
+    m_lits.push_back(lit);
+  }
 }
 void h_inductive_generalizer::dump_lit_count() {
     for (obj_map<expr, unsigned>::iterator it = m_lit2count.begin(); it != m_lit2count.end();
