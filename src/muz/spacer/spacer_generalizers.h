@@ -85,45 +85,56 @@ class h_inductive_generalizer : public lemma_generalizer {
     }
   };
 
+  obj_map<expr, unsigned> m_lit2count;
+  ast_manager &m;
+  expr_ref_vector m_lits;
+  // unsigned m_lemma_counter = 0; // How many lemmas have we generalized so
+  // far. Looks like we can piggyback on m_st.count
+  unsigned m_threshold; // How many lemmas should we have seen before activating
+                        // the heuristic
   unsigned m_failure_limit;
   bool m_array_only;
   stats m_st;
-  bool m_use_expansion; // whether to try literal expansion or not. Default =
-                        // True
+
 public:
   h_inductive_generalizer(context &ctx, unsigned failure_limit,
-                          bool use_expansion = true, bool array_only = false)
+                          unsigned threshold)
       : lemma_generalizer(ctx), m_failure_limit(failure_limit),
-        m_array_only(array_only), m_use_expansion(use_expansion) {}
+        m(ctx.get_ast_manager()), m_lits(m),  m_threshold(threshold) {
+    STRACE("spacer.h_ind_gen", tout << "Create h_indgen"
+                                    << "\n";);
+  }
   ~h_inductive_generalizer() override {}
   void operator()(lemma_ref &lemma) override;
 
   void collect_statistics(statistics &st) const override;
   void reset_statistics() override { m_st.reset(); }
+    void increase_lit_count(expr_ref &lit);
+    void dump_lit_count();
 };
 
 class unsat_core_generalizer : public lemma_generalizer {
-    struct stats {
-        unsigned count;
-        unsigned num_failures;
-        stopwatch watch;
-        stats() { reset(); }
-        void reset() {
-            count = 0;
-            num_failures = 0;
-            watch.reset();
-        }
-    };
+  struct stats {
+    unsigned count;
+    unsigned num_failures;
+    stopwatch watch;
+    stats() { reset(); }
+    void reset() {
+      count = 0;
+      num_failures = 0;
+      watch.reset();
+    }
+  };
 
-    stats m_st;
+  stats m_st;
 
-  public:
-    unsat_core_generalizer(context &ctx) : lemma_generalizer(ctx) {}
-    ~unsat_core_generalizer() override {}
-    void operator()(lemma_ref &lemma) override;
+public:
+  unsat_core_generalizer(context &ctx) : lemma_generalizer(ctx) {}
+  ~unsat_core_generalizer() override {}
+  void operator()(lemma_ref &lemma) override;
 
-    void collect_statistics(statistics &st) const override;
-    void reset_statistics() override { m_st.reset(); }
+  void collect_statistics(statistics &st) const override;
+  void reset_statistics() override { m_st.reset(); }
 };
 
 class lemma_array_eq_generalizer : public lemma_generalizer {

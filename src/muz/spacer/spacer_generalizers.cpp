@@ -177,32 +177,128 @@ void lemma_bool_inductive_generalizer::collect_statistics(statistics &st) const
     st.update("bool inductive gen failures", m_st.num_failures);
 }
 
-void unsat_core_generalizer::operator()(lemma_ref &lemma)
-{
+// ------------------------
+// h_inductive_generalizer
+/// Inductive generalization by dropping and expanding literals with some heuristics
+void h_inductive_generalizer::operator()(lemma_ref &lemma) {
+    if (lemma->get_cube().empty()) return;
+    STRACE("spacer.h_ind_gen", tout<<"LEMMA:\n"<<mk_and(lemma->get_cube())<<"\n";);
+    // STRACE("spacer.ind_gen", tout<<"POB:\n"<<lemma->get_pob()<<"\n";);       
+
+    // STRACE("spacer.ind_gen", tout<<"USE LIT EXPANSION?\n"<<m_use_expansion<<"\n";);
     m_st.count++;
     scoped_watch _w_(m_st.watch);
-    ast_manager &m = lemma->get_ast_manager();
-
-    pred_transformer &pt = lemma->get_pob()->pt();
-
-    unsigned old_sz = lemma->get_cube().size();
-    unsigned old_level = lemma->level();
-    (void)old_level;
 
     unsigned uses_level;
-    expr_ref_vector core(m);
-    VERIFY(pt.is_invariant(lemma->level(), lemma.get(), uses_level, &core));
+    pred_transformer &pt = lemma->get_pob()->pt();
+    ast_manager &m = pt.get_ast_manager();
 
-    CTRACE("spacer", old_sz > core.size(),
-           tout << "unsat core reduced lemma from: "
-           << old_sz << " to " << core.size() << "\n";);
-    CTRACE("spacer", old_level < uses_level,
-           tout << "unsat core moved lemma up from: "
-           << old_level << " to " << uses_level << "\n";);
-    if (old_sz > core.size()) {
-        lemma->update_cube(lemma->get_pob(), core);
+    expr_ref_vector cube(m);
+    cube.append(lemma->get_cube());
+
+    bool dirty = false;
+    expr_ref true_expr(m.mk_true(), m);
+    ptr_vector<expr> processed;
+    expr_ref_vector extra_lits(m);
+
+    unsigned weakness = lemma->weakness();
+
+    unsigned i = 0, num_failures = 0;
+
+    //FOR DEBUGGING ONLY
+    // pt.check_inductive(lemma->level(), cube, uses_level, weakness, true);
+
+
+    while (i < cube.size() &&
+           (!m_failure_limit || num_failures < m_failure_limit)) {
+      expr_ref lit(m);
+      lit = cube.get(i);
+      increase_lit_count(lit);
+
+      if ( m_st.count < m_threshold // if we havent seen enough lemmas, drop literals as normal
+           ||  m_lit2count[lit]>1){ // if count ==1 : this is a new lit. count > 1: not a new lit
+        cube[i] = true_expr;
+        STRACE("spacer.h_ind_gen", tout << "LIT:" << lit << "exists."
+                                        << "\n";);
+
+        if (cube.size() > 1 &&
+            pt.check_inductive(lemma->level(), cube, uses_level, weakness)) {
+          num_failures = 0;
+          dirty = true;
+          for (i = 0; i < cube.size() && processed.contains(cube.get(i)); ++i)
+            ;
+        } else {
+          cube[i] = lit;
+          processed.push_back(lit);
+          ++num_failures;
+          ++m_st.num_failures;
+          ++i;
+        }
+      } else {
+        // a new lit. Probably shouldn't drop
+        STRACE("spacer.h_ind_gen", tout << "LIT:" << lit
+                                        << "doesnt exist. Adding to lit2time"
+                                        << "\n";);
+        ++i;
+      }
+    }
+    if(dirty){
+        TRACE("spacer.h_ind_gen",
+               tout << "Generalized from:\n" << mk_and(lemma->get_cube())
+               << "\ninto\n" << mk_and(cube) << "\n";);
+        lemma->update_cube(lemma->get_pob(), cube);
+        SASSERT(uses_level >= lemma->level());
         lemma->set_level(uses_level);
     }
+    dump_lit_count();
+}
+void h_inductive_generalizer::collect_statistics(
+    statistics &st) const {
+  st.update("time.spacer.solve.reach.gen.bool_ind", m_st.watch.get_seconds());
+  st.update("bool inductive gen", m_st.count);
+  st.update("bool inductive gen failures", m_st.num_failures);
+}
+
+void h_inductive_generalizer::increase_lit_count(expr_ref &lit) {
+    if(m_lit2count.contains(lit)){
+        m_lit2count[lit]++;
+    }
+    else{
+        m_lit2count.insert(lit, 1);
+        m_lits.push_back(lit);
+    }
+}
+void h_inductive_generalizer::dump_lit_count() {
+    for (obj_map<expr, unsigned>::iterator it = m_lit2count.begin(); it != m_lit2count.end();
+       it++) {
+        STRACE("spacer.h_ind_gen", tout << mk_pp(it->m_key, m) << ":" << it->m_value << "\n";);
+  }
+}
+void unsat_core_generalizer::operator()(lemma_ref &lemma) {
+  m_st.count++;
+  scoped_watch _w_(m_st.watch);
+  ast_manager &m = lemma->get_ast_manager();
+
+  pred_transformer &pt = lemma->get_pob()->pt();
+
+  unsigned old_sz = lemma->get_cube().size();
+  unsigned old_level = lemma->level();
+  (void)old_level;
+
+  unsigned uses_level;
+  expr_ref_vector core(m);
+  VERIFY(pt.is_invariant(lemma->level(), lemma.get(), uses_level, &core));
+
+  CTRACE("spacer", old_sz > core.size(),
+         tout << "unsat core reduced lemma from: " << old_sz << " to "
+              << core.size() << "\n";);
+  CTRACE("spacer", old_level < uses_level,
+         tout << "unsat core moved lemma up from: " << old_level << " to "
+              << uses_level << "\n";);
+  if (old_sz > core.size()) {
+    lemma->update_cube(lemma->get_pob(), core);
+    lemma->set_level(uses_level);
+  }
 }
 
 void unsat_core_generalizer::collect_statistics(statistics &st) const
