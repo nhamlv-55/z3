@@ -968,7 +968,7 @@ class context {
     bool                 m_use_ctp;
     bool                 m_use_inc_clause;
     bool                 m_use_ind_gen;
-    bool                 m_use_h_ind_gen;
+    unsigned             m_use_h_ind_gen; //0: do not use. 1, 2, etc: the index of the heuristic to use.
     bool                 m_use_expansion;
     bool                 m_use_array_eq_gen;
     bool                 m_validate_lemmas;
