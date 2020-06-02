@@ -85,22 +85,35 @@ class h_inductive_generalizer : public lemma_generalizer {
     }
   };
 
-  obj_map<expr, unsigned> m_lit2count;
+  // to flip a coin
+  random_gen m_random;
+  // first value in the vector is how many times we have seen the lit so far.
+    // second value is how many times we were able to drop it
+    obj_map<expr, std::pair<unsigned, unsigned>> m_lit2count;
   ast_manager &m;
   expr_ref_vector m_lits;
   // unsigned m_lemma_counter = 0; // How many lemmas have we generalized so
   // far. Looks like we can piggyback on m_st.count
+
+  unsigned m_heu_index; // What heuristic to use
+
   unsigned m_threshold; // How many lemmas should we have seen before activating
                         // the heuristic
+  // to keep track of how many times we were able to drop the newly seen lit so
+  // far
+  float m_1st_seen_can_drop = 1;
+  float m_1st_seen_cannot_drop = 1;
+
   unsigned m_failure_limit;
   bool m_array_only;
   stats m_st;
 
 public:
   h_inductive_generalizer(context &ctx, unsigned failure_limit,
-                          unsigned threshold)
+                          unsigned threshold, unsigned heu_index)
       : lemma_generalizer(ctx), m_failure_limit(failure_limit),
-        m(ctx.get_ast_manager()), m_lits(m),  m_threshold(threshold) {
+        m(ctx.get_ast_manager()), m_lits(m),  m_threshold(threshold),
+    m_heu_index(heu_index){
     STRACE("spacer.h_ind_gen", tout << "Create h_indgen"
                                     << "\n";);
   }
