@@ -234,6 +234,8 @@ void h_inductive_generalizer::operator()(lemma_ref &lemma) {
         if (m_lit2count[lit].first == 1) {
           m_1st_seen_can_drop++;
         }
+        // increase the success counter
+        m_lit2count[lit].second++;
       } else {
         // drop unsuccessful. check and increase m_1st_seen_cannot_drop
         if (m_lit2count[lit].first == 1) {
