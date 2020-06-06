@@ -104,16 +104,18 @@ class h_inductive_generalizer : public lemma_generalizer {
   float m_1st_seen_can_drop = 1;
   float m_1st_seen_cannot_drop = 1;
 
+  const float SUCCESS_THRES = 0.3;
+
   unsigned m_failure_limit;
   bool m_array_only;
   stats m_st;
-
+  
 public:
   h_inductive_generalizer(context &ctx, unsigned failure_limit,
-                          unsigned threshold, unsigned heu_index)
+                          unsigned threshold, unsigned heu_index, unsigned random_seed)
       : lemma_generalizer(ctx), m_failure_limit(failure_limit),
         m(ctx.get_ast_manager()), m_lits(m),  m_threshold(threshold),
-    m_heu_index(heu_index){
+        m_random(random_seed), m_heu_index(heu_index){
     STRACE("spacer.h_ind_gen", tout << "Create h_indgen"
                                     << "\n";);
   }

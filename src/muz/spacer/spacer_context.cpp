@@ -2677,7 +2677,8 @@ void context::init_lemma_generalizers()
     }
     if (m_use_h_ind_gen>0) {
         STRACE("spacer.h_ind_gen", tout<<"use h_indgen"<<"\n";);
-        m_lemma_generalizers.push_back(alloc(h_inductive_generalizer, *this, 0, 100, m_use_h_ind_gen));
+        m_lemma_generalizers.push_back(
+            alloc(h_inductive_generalizer, *this, 0, 100, m_use_h_ind_gen, m_params.spacer_random_seed()));
     }
     // shamelessly reused use_lim_num_gen code
     if (m_use_snap_val_gen) {
