@@ -310,7 +310,6 @@ bool h_inductive_generalizer::should_try_drop(expr_ref &lit) {
     float seen = m_lit2count[lit].first;
     float success = m_lit2count[lit].second;
     float ratio = success / seen;
-    const float SUCCESS_THRES = 0.3;
 
     //not enough data. Try to drop.
     if (m_1st_seen_cannot_drop + m_1st_seen_can_drop < m_threshold){
@@ -355,7 +354,6 @@ bool h_inductive_generalizer::should_try_drop(expr_ref &lit) {
     float seen = m_lit2count[lit].first;
     float success = m_lit2count[lit].second;
     float ratio = success / seen;
-    const float SUCCESS_THRES = 0.3;
 
     //not enough data. Try to drop.
     if (m_1st_seen_cannot_drop + m_1st_seen_can_drop < m_threshold){
@@ -369,6 +367,51 @@ bool h_inductive_generalizer::should_try_drop(expr_ref &lit) {
                                       << bool(ratio < SUCCESS_THRES) << "\n";);
       return false;
     }
+  } break;
+  case 5: {
+    /*
+      same as heu 3, but stochastic
+     */
+
+    float seen = m_lit2count[lit].first;
+    float success = m_lit2count[lit].second;
+    float ratio = success / seen;
+
+    //not enough data. Try to drop.
+    if (m_1st_seen_cannot_drop + m_1st_seen_can_drop < m_threshold){
+        return true;
+    }
+    //is a new lit. use 2nd heuristic
+    const float flipped_value = float(m_random()) / float(m_random.max_value());
+    if (seen == 1) {
+      float ratio_so_far = (m_1st_seen_cannot_drop - 1) /
+                           (m_1st_seen_cannot_drop + m_1st_seen_can_drop - 2);
+
+      return flipped_value < ratio_so_far;
+    } else {
+      return flipped_value < ratio;
+    }
+
+    //this line should never be reached;
+    SASSERT(false);
+    return true;
+  } break;
+  case 6: {
+    /*
+      same as heu 4, but stochastic
+     */
+    float seen = m_lit2count[lit].first;
+    float success = m_lit2count[lit].second;
+    float ratio = success / seen;
+
+    // not enough data. Try to drop.
+    if (m_1st_seen_cannot_drop + m_1st_seen_can_drop < m_threshold) {
+      return true;
+    }
+    // note that newly seen lit will always has the ratio of 0.-> Always got
+    // skip
+    const float flipped_value = float(m_random()) / float(m_random.max_value());
+    return flipped_value < ratio;
   } break;
   }
   // default value
