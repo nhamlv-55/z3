@@ -222,6 +222,7 @@ void h_inductive_generalizer::operator()(lemma_ref &lemma) {
     lit = cube.get(i);
     increase_lit_count(lit);
 
+    //generally we want to drop lit that can be drop in the past
     if (should_try_drop(lit)) {
       cube[i] = true_expr;
       if (cube.size() > 1 &&
@@ -273,32 +274,41 @@ void h_inductive_generalizer::collect_statistics(statistics &st) const {
   st.update("bool inductive gen failures", m_st.num_failures);
 }
 
+bool h_inductive_generalizer::yesno(float prob){
+    /*
+      return true with probability prob
+     */
+    float flipped_value = float(m_random()) / float(m_random.max_value());
+    return flipped_value < prob;
+}
+
 bool h_inductive_generalizer::should_try_drop(expr_ref &lit) {
+  /*
+    variable convention for the heuristic
+    l_success_rate: success rate for dropping the lit that we are checking
+    (&lit) g_success_rate: success rate for dropping a class of lit, for
+    example, first time seen lit. (g stands for global)
+   */
+  // not enough data. Try to drop.
+  if (m_1st_seen_cannot_drop + m_1st_seen_can_drop < m_threshold) {
+    return true;
+  }
+  // enough data, use heuristics
   switch (m_heu_index) {
   case 1: {
-    return (m_st.count < m_threshold || m_lit2count[lit].first > 1);
+    return m_lit2count[lit].first > 1;
   } break;
   case 2:
-    /*keep the ratio of 1st seen lits that cannot be drop, and make a guess
+    /*keep the ratio of 1st seen lits that can be drop, and make a guess
      * based on that*/
-    { // count number of newly seen lits for threshold
-      if (m_1st_seen_cannot_drop + m_1st_seen_can_drop < m_threshold ||
-          m_lit2count[lit].first > 1) {
+    {
+      if(m_lit2count[lit].first > 1) {
         return true;
       }
+      float g_success_rate = (m_1st_seen_can_drop - 1) /
+                             (m_1st_seen_cannot_drop + m_1st_seen_can_drop - 2);
 
-      // have seen enough data and is a new lit.
-      // calculate ratio so far, and flip a coin
-      float ratio_so_far = (m_1st_seen_cannot_drop - 1) /
-                           (m_1st_seen_cannot_drop + m_1st_seen_can_drop - 2);
-
-      float flipped_value = float(m_random()) / float(m_random.max_value());
-
-      STRACE("spacer.h_ind_gen",
-             tout << "ratio_so_far:" << ratio_so_far
-                  << ". Flipped value:" << flipped_value << "should_try_drop:"
-                  << bool(flipped_value < ratio_so_far) << "\n";);
-      return flipped_value < ratio_so_far;
+      return yesno(g_success_rate);
     }
     break;
   case 3: {
@@ -306,117 +316,79 @@ bool h_inductive_generalizer::should_try_drop(expr_ref &lit) {
       if not a new lit, use the success rate of dropping the lit so far
       if a new lit, use 2nd heuristic.
      */
-
+    // is a new lit. use 2nd heuristic
     float seen = m_lit2count[lit].first;
     float success = m_lit2count[lit].second;
-    float ratio = success / seen;
+    float l_success_rate = success / seen;
 
-    //not enough data. Try to drop.
-    if (m_1st_seen_cannot_drop + m_1st_seen_can_drop < m_threshold){
-        return true;
-    }
-    //is a new lit. use 2nd heuristic
-    if(seen == 1){
-      float ratio_so_far = (m_1st_seen_cannot_drop - 1) /
-                           (m_1st_seen_cannot_drop + m_1st_seen_can_drop - 2);
+    if (seen == 1) {
+      float g_success_rate = (m_1st_seen_can_drop - 1) /
+                             (m_1st_seen_cannot_drop + m_1st_seen_can_drop - 2);
 
-      float flipped_value = float(m_random()) / float(m_random.max_value());
-
-      STRACE("spacer.h_ind_gen",
-             tout << "ratio_so_far:" << ratio_so_far
-                  << ". Flipped value:" << flipped_value << "should_try_drop:"
-                  << bool(flipped_value < ratio_so_far) << "\n";);
-      return flipped_value < ratio_so_far;
-    }else{
+      return yesno(g_success_rate);
+    } else {
       // not a new lit
-      // not successful in the past. Dont try to drop.
-      if (ratio < SUCCESS_THRES) {
-        STRACE("spacer.h_ind_gen",
-               tout << "success ratio:" << ratio
-                    << ". SUCCESS_THRES:" << SUCCESS_THRES << "should_try_drop:"
-                    << bool(ratio < SUCCESS_THRES) << "\n";);
-        return false;
-      }else{
-          // the lit is not a new lit. Dropping it in the past was successful
-          return true;
-      }
+      // was dropping it successful in the past?
+      return l_success_rate > SUCCESS_THRES;
     }
 
-    //this line should never be reached;
+    // this line should never be reached;
     SASSERT(false);
-    return true;
   } break;
-  case 4:
-      {
+  case 4: {
     /*
       only use the success rate of dropping the lit so far
      */
     float seen = m_lit2count[lit].first;
     float success = m_lit2count[lit].second;
-    float ratio = success / seen;
-
-    //not enough data. Try to drop.
-    if (m_1st_seen_cannot_drop + m_1st_seen_can_drop < m_threshold){
-        return true;
-    }
-    // note that newly seen lit will always has the ratio of 0.-> Always got skip
-    if (ratio < SUCCESS_THRES) {
-      STRACE("spacer.h_ind_gen", tout << "success ratio:" << ratio
-                                      << ". SUCCESS_THRES:" << SUCCESS_THRES
-                                      << "should_try_drop:"
-                                      << bool(ratio < SUCCESS_THRES) << "\n";);
-      return false;
-    }
+    float l_success_rate = success / seen;
+    // was dropping it successful in the past?
+    return l_success_rate > SUCCESS_THRES;
   } break;
   case 5: {
     /*
-      same as heu 3, but stochastic
+      like heu 3, but stochastic
      */
-
     float seen = m_lit2count[lit].first;
     float success = m_lit2count[lit].second;
-    float ratio = success / seen;
+    float l_success_rate = success / seen;
 
-    //not enough data. Try to drop.
-    if (m_1st_seen_cannot_drop + m_1st_seen_can_drop < m_threshold){
-        return true;
-    }
-    //is a new lit. use 2nd heuristic
-    const float flipped_value = float(m_random()) / float(m_random.max_value());
+    // is a new lit. use 2nd heuristic
     if (seen == 1) {
-      float ratio_so_far = (m_1st_seen_cannot_drop - 1) /
+      float g_success_rate = (m_1st_seen_can_drop - 1) /
                            (m_1st_seen_cannot_drop + m_1st_seen_can_drop - 2);
 
-      return flipped_value < ratio_so_far;
+      return yesno(g_success_rate);
     } else {
-      return flipped_value < ratio;
+      // not a new lit
+      // was dropping it successful in the past?
+      return yesno(l_success_rate);
     }
 
-    //this line should never be reached;
+    // this line should never be reached;
     SASSERT(false);
     return true;
   } break;
   case 6: {
     /*
-      same as heu 4, but stochastic
+      like heu 4, but stochastic
      */
     float seen = m_lit2count[lit].first;
     float success = m_lit2count[lit].second;
-    float ratio = success / seen;
+    float l_success_rate = success / seen;
 
     // not enough data. Try to drop.
     if (m_1st_seen_cannot_drop + m_1st_seen_can_drop < m_threshold) {
       return true;
     }
-    // note that newly seen lit will always has the ratio of 0.-> Always got
-    // skip
-    const float flipped_value = float(m_random()) / float(m_random.max_value());
-    return flipped_value < ratio;
+    // was dropping it successful in the past?
+    return yesno(l_success_rate);
   } break;
   }
   // default value
   return true;
 }
+
 void h_inductive_generalizer::increase_lit_count(expr_ref &lit) {
   if (m_lit2count.contains(lit)) {
     STRACE("spacer.h_ind_gen", tout << "LIT:" << lit << " exists."
@@ -426,22 +398,25 @@ void h_inductive_generalizer::increase_lit_count(expr_ref &lit) {
     STRACE("spacer.h_ind_gen", tout << "LIT:" << lit
                                     << " doesnt exist. Adding to lit2time"
                                     << "\n";);
-    m_lit2count.insert(lit, std::pair<unsigned, unsigned> (1, 0));
+    m_lit2count.insert(lit, std::pair<unsigned, unsigned>(1, 0));
     m_lits.push_back(lit);
   }
 }
+
 void h_inductive_generalizer::dump_lit_count() {
-    for (obj_map<expr, std::pair<unsigned, unsigned>>::iterator it = m_lit2count.begin(); it != m_lit2count.end();
-       it++) {
-        float seen = it->m_value.first;
-        float success = it->m_value.second;
-        float ratio = success/seen;
-        STRACE("spacer.h_ind_gen", tout << mk_pp(it->m_key, m)
-               << ": seen: " << seen <<", "
-               <<"drop successfully: "<<success <<", "
-               <<"success ratio:"<< ratio << "\n";);
+  for (obj_map<expr, std::pair<unsigned, unsigned>>::iterator it =
+           m_lit2count.begin();
+       it != m_lit2count.end(); it++) {
+    float seen = it->m_value.first;
+    float success = it->m_value.second;
+    float ratio = success / seen;
+    STRACE("spacer.h_ind_gen", tout << mk_pp(it->m_key, m) << ": seen: " << seen
+                                    << ", "
+                                    << "drop successfully: " << success << ", "
+                                    << "success ratio:" << ratio << "\n";);
   }
 }
+
 void unsat_core_generalizer::operator()(lemma_ref &lemma) {
   m_st.count++;
   scoped_watch _w_(m_st.watch);
@@ -623,6 +598,4 @@ void lemma_eq_generalizer::operator() (lemma_ref &lemma)
         lemma->update_cube(lemma->get_pob(), core);
     }
 }
-
-
 };

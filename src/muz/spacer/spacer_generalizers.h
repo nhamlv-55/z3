@@ -109,13 +109,14 @@ class h_inductive_generalizer : public lemma_generalizer {
   unsigned m_failure_limit;
   bool m_array_only;
   stats m_st;
-  
+
 public:
   h_inductive_generalizer(context &ctx, unsigned failure_limit,
-                          unsigned threshold, unsigned heu_index, unsigned random_seed)
+                          unsigned threshold, unsigned heu_index,
+                          unsigned random_seed)
       : lemma_generalizer(ctx), m_failure_limit(failure_limit),
-        m(ctx.get_ast_manager()), m_lits(m),  m_threshold(threshold),
-        m_random(random_seed), m_heu_index(heu_index){
+        m(ctx.get_ast_manager()), m_lits(m), m_threshold(threshold),
+        m_random(random_seed), m_heu_index(heu_index) {
     STRACE("spacer.h_ind_gen", tout << "Create h_indgen"
                                     << "\n";);
   }
@@ -124,9 +125,10 @@ public:
 
   void collect_statistics(statistics &st) const override;
   void reset_statistics() override { m_st.reset(); }
-    void increase_lit_count(expr_ref &lit);
-    void dump_lit_count();
-    bool should_try_drop(expr_ref &lit);
+  void increase_lit_count(expr_ref &lit);
+  void dump_lit_count();
+  bool should_try_drop(expr_ref &lit);
+  bool yesno(float prob); // return true with probability prob
 };
 
 class unsat_core_generalizer : public lemma_generalizer {
