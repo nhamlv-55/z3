@@ -88,8 +88,8 @@ class h_inductive_generalizer : public lemma_generalizer {
   // to flip a coin
   random_gen m_random;
   // first value in the vector is how many times we have seen the lit so far.
-    // second value is how many times we were able to drop it
-    obj_map<expr, std::pair<unsigned, unsigned>> m_lit2count;
+  // second value is how many times we were able to drop it
+  obj_map<expr, std::pair<unsigned, unsigned>> m_lit2count;
   ast_manager &m;
   expr_ref_vector m_lits;
   // unsigned m_lemma_counter = 0; // How many lemmas have we generalized so
@@ -104,7 +104,7 @@ class h_inductive_generalizer : public lemma_generalizer {
   float m_1st_seen_can_drop = 1;
   float m_1st_seen_cannot_drop = 1;
 
-  const float SUCCESS_THRES = 0.3;
+  const float SUCCESS_THRES = 0.7;
 
   unsigned m_failure_limit;
   bool m_array_only;
