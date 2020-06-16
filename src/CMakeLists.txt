@@ -212,41 +212,39 @@ if (Z3_BUILD_GRPC)
   # so that if those are also shared libraries they are referenced by `libz3.so`.
 
   # Proto file
-  get_filename_component(hw_proto "../../../workspace/Doping/protos/helloworld.proto" ABSOLUTE)
-  get_filename_component(hw_proto_path "${hw_proto}" PATH)
+  get_filename_component(ic_proto "../../../workspace/Doping/protos/indgen_conn.proto" ABSOLUTE)
+  get_filename_component(ic_proto_path "${ic_proto}" PATH)
 
-  set(hw_proto_srcs "${CMAKE_CURRENT_BINARY_DIR}/helloworld.pb.cc")
-  set(hw_proto_hdrs "${CMAKE_CURRENT_BINARY_DIR}/helloworld.pb.h")
-  set(hw_grpc_srcs "${CMAKE_CURRENT_BINARY_DIR}/helloworld.grpc.pb.cc")
-  set(hw_grpc_hdrs "${CMAKE_CURRENT_BINARY_DIR}/helloworld.grpc.pb.h")
+  set(ic_proto_srcs "${CMAKE_CURRENT_BINARY_DIR}/indgen_conn.pb.cc")
+  set(ic_proto_hdrs "${CMAKE_CURRENT_BINARY_DIR}/indgen_conn.pb.h")
+  set(ic_grpc_srcs "${CMAKE_CURRENT_BINARY_DIR}/indgen_conn.grpc.pb.cc")
+  set(ic_grpc_hdrs "${CMAKE_CURRENT_BINARY_DIR}/indgen_conn.grpc.pb.h")
   add_custom_command(
-    OUTPUT "${hw_proto_srcs}" "${hw_proto_hdrs}" "${hw_grpc_srcs}" "${hw_grpc_hdrs}"
+    OUTPUT "${ic_proto_srcs}" "${ic_proto_hdrs}" "${ic_grpc_srcs}" "${ic_grpc_hdrs}"
     COMMAND ${_PROTOBUF_PROTOC}
     ARGS --grpc_out "${CMAKE_CURRENT_BINARY_DIR}"
     --cpp_out "${CMAKE_CURRENT_BINARY_DIR}"
-    -I "${hw_proto_path}"
+    -I "${ic_proto_path}"
     --plugin=protoc-gen-grpc="${_GRPC_CPP_PLUGIN_EXECUTABLE}"
-    "${hw_proto}"
-    DEPENDS "${hw_proto}"
+    "${ic_proto}"
+    DEPENDS "${ic_proto}"
     COMMENT "Generating .pb.h and .pb.c files into ${CMAKE_CURRENT_BINARY_DIR} using
     COMMAND ${_PROTOBUF_PROTOC}
     ARGS --grpc_out ${CMAKE_CURRENT_BINARY_DIR}
     --cpp_out ${CMAKE_CURRENT_BINARY_DIR}
-    -I ${hw_proto_path}
+    -I ${ic_proto_path}
     --plugin=protoc-gen-grpc=${_GRPC_CPP_PLUGIN_EXECUTABLE}
-    ${hw_proto}
-" )
+    ${ic_proto}" )
 
   # Include generated *.pb.h files
   include_directories("${CMAKE_CURRENT_BINARY_DIR}")
   add_custom_target(extra_grpc
-    DEPENDS "${hw_proto_srcs}" "${hw_proto_hdrs}" "${hw_grpc_srcs}" "${hw_grpc_hdrs}"
+    DEPENDS "${ic_proto_srcs}" "${ic_proto_hdrs}" "${ic_grpc_srcs}" "${ic_grpc_hdrs}"
     )
   add_dependencies(libz3 extra_grpc)
   set_property(TARGET libz3 APPEND PROPERTY
     OBJECT_DEPENDS ${_GRPC_GRPCPP} ${_PROTOBUF_LIBPROTOBUF}
-    "${hw_proto_srcs}" "${hw_proto_hdrs}" "${hw_grpc_srcs}" "${hw_grpc_hdrs}")
-  # z3_append_linker_flag_list_to_target(libz3 "/DEF:${hw_proto_srcs}:${hw_proto_hdrs}:${hw_grpc_srcs}:${hw_grpc_hdrs}"   )
+    "${ic_proto_srcs}" "${ic_proto_hdrs}" "${ic_grpc_srcs}" "${ic_grpc_hdrs}")
 endif()
 
 if (MSVC)

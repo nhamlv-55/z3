@@ -19,9 +19,11 @@ foreach (component ${Z3_LIBZ3_COMPONENTS_LIST})
 endforeach()
 
 if (Z3_BUILD_GRPC)
+  file(TOUCH ${ic_proto_srcs})
+  file(TOUCH ${ic_grpc_srcs})
   add_executable(shell
-    ${hw_proto_srcs}
-    ${hw_grpc_srcs}
+    ${ic_proto_srcs}
+    ${ic_grpc_srcs}
     datalog_frontend.cpp
     dimacs_frontend.cpp
     "${CMAKE_CURRENT_BINARY_DIR}/gparams_register_modules.cpp"
