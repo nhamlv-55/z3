@@ -32,6 +32,8 @@ Revision History:
 #include "smt/smt_solver.h"
 #include "qe/qe_term_graph.h"
 
+
+
 namespace spacer {
 void lemma_sanity_checker::operator()(lemma_ref &lemma) {
     unsigned uses_level;
@@ -185,19 +187,13 @@ void h_inductive_generalizer::operator()(lemma_ref &lemma) {
     return;
   TRACE("spacer.h_ind_gen", tout << "LEMMA:\n"
                                  << mk_and(lemma->get_cube()) << "\n";);
-  // STRACE("spacer.ind_gen", tout<<"POB:\n"<<lemma->get_pob()<<"\n";);
 
-  // STRACE("spacer.ind_gen", tout<<"USE LIT
-  // EXPANSION?\n"<<m_use_expansion<<"\n";);
-  m_st.count++;
-  TRACE("spacer.h_ind_gen", tout << "m_st.count:" << m_st.count << "\n";);
+
   STRACE("spacer.h_ind_gen",
-         tout << "1st_seen_can_drop:" << m_1st_seen_can_drop << ", "
-              << "1st_seen_cannot_drop:" << m_1st_seen_cannot_drop << ", "
-              << "ratio:"
-              << m_1st_seen_can_drop /
-                     (m_1st_seen_cannot_drop + m_1st_seen_can_drop)
-              << "\n";);
+         tout << "1st_seen_can_drop:" << m_lit_st.fst_seen_can_drop << ", "
+              << "1st_seen_cannot_drop:" << m_lit_st.fst_seen_cannot_drop
+              << ", "
+              << "ratio:" << m_lit_st.fst_seen_success_rate() << "\n";);
   scoped_watch _w_(m_st.watch);
 
   unsigned uses_level;
@@ -216,6 +212,12 @@ void h_inductive_generalizer::operator()(lemma_ref &lemma) {
 
   unsigned i = 0, num_failures = 0;
 
+  if(m_1st_query && cube.size() > 1){
+      TRACE("spacer.h_ind_gen", tout << "Bootstrapping...\n";);
+
+      pt.check_inductive(lemma->level(), cube, uses_level, weakness, true);
+      m_1st_query = false;
+  }
   while (i < cube.size() &&
          (!m_failure_limit || num_failures < m_failure_limit)) {
     expr_ref lit(m);
@@ -231,16 +233,16 @@ void h_inductive_generalizer::operator()(lemma_ref &lemma) {
         dirty = true;
         for (i = 0; i < cube.size() && processed.contains(cube.get(i)); ++i)
           ;
-        // drop successful. check and increase m_1st_seen_can_drop
-        if (m_lit2count[lit].first == 1) {
-          m_1st_seen_can_drop++;
+        // drop successful. check and increase fst_seen_can_drop
+        if (m_lit2count[lit]->seen == 1) {
+          m_lit_st.fst_seen_can_drop++;
         }
         // increase the success counter
-        m_lit2count[lit].second++;
+        m_lit2count[lit]->success++;
       } else {
-        // drop unsuccessful. check and increase m_1st_seen_cannot_drop
-        if (m_lit2count[lit].first == 1) {
-          m_1st_seen_cannot_drop++;
+        // drop unsuccessful. check and increase fst_seen_cannot_drop
+        if (m_lit2count[lit]->seen == 1) {
+          m_lit_st.fst_seen_cannot_drop++;
         }
         cube[i] = lit;
         processed.push_back(lit);
@@ -255,7 +257,7 @@ void h_inductive_generalizer::operator()(lemma_ref &lemma) {
                                        << "Do not try to drop."
                                        << "\n";);
         // should we decrease seen_counter?
-        m_lit2count[lit].first --;
+        m_lit2count[lit]->seen --;
     }
   }
   if (dirty) {
@@ -266,7 +268,17 @@ void h_inductive_generalizer::operator()(lemma_ref &lemma) {
     SASSERT(uses_level >= lemma->level());
     lemma->set_level(uses_level);
   }
-  dump_lit_count();
+  TRACE("spacer.h_ind_gen", tout << "m_1sT_query:"<<m_1st_query<<"\n";);
+  //send datapoint to server
+  if(m_lemmas_sent < 1000 ){
+      std::stringstream ss_lemma_before;
+      std::stringstream ss_lemma_after;
+      ss_lemma_before<<mk_and(lemma->get_cube());
+      ss_lemma_after<<mk_and(cube);
+      m_grpc_conn.SendLemma(ss_lemma_before.str(), ss_lemma_after.str());
+      m_lemmas_sent ++;
+  }
+  // dump_lit_count();
 }
 void h_inductive_generalizer::collect_statistics(statistics &st) const {
   st.update("time.spacer.solve.reach.gen.bool_ind", m_st.watch.get_seconds());
@@ -283,32 +295,24 @@ bool h_inductive_generalizer::yesno(float prob){
 }
 
 bool h_inductive_generalizer::should_try_drop(expr_ref &lit) {
-  /*
-    variable convention for the heuristic
-    l_success_rate: success rate for dropping the lit that we are checking
-    (&lit) g_success_rate: success rate for dropping a class of lit, for
-    example, first time seen lit. (g stands for global)
-   */
   // not enough data. Try to drop.
-  if (m_1st_seen_cannot_drop + m_1st_seen_can_drop < m_threshold) {
+  if (m_lit_st.n_lits() < m_threshold) {
     return true;
   }
   // enough data, use heuristics
   switch (m_heu_index) {
   case 1: {
-    return m_lit2count[lit].first > 1;
+    // temporary change to >=1 to see if it matches no heuristics
+    return m_lit2count[lit]->seen >= 1;
   } break;
   case 2:
     /*keep the ratio of 1st seen lits that can be drop, and make a guess
      * based on that*/
     {
-      if(m_lit2count[lit].first > 1) {
+      if (m_lit2count[lit]->seen > 1) {
         return true;
       }
-      float g_success_rate = (m_1st_seen_can_drop - 1) /
-                             (m_1st_seen_cannot_drop + m_1st_seen_can_drop - 2);
-
-      return yesno(g_success_rate);
+      return yesno(m_lit_st.fst_seen_success_rate());
     }
     break;
   case 3: {
@@ -316,19 +320,13 @@ bool h_inductive_generalizer::should_try_drop(expr_ref &lit) {
       if not a new lit, use the success rate of dropping the lit so far
       if a new lit, use 2nd heuristic.
      */
-    // is a new lit. use 2nd heuristic
-    float seen = m_lit2count[lit].first;
-    float success = m_lit2count[lit].second;
-    float l_success_rate = success / seen;
+    double l_success_rate = lit_success_rate(lit);
 
-    if (seen == 1) {
-      float g_success_rate = (m_1st_seen_can_drop - 1) /
-                             (m_1st_seen_cannot_drop + m_1st_seen_can_drop - 2);
-
-      return yesno(g_success_rate);
+    if (l_success_rate == -1) {
+      // is a new lit. use 2nd heuristic
+      return yesno(m_lit_st.fst_seen_success_rate());
     } else {
-      // not a new lit
-      // was dropping it successful in the past?
+      // not a new lit.was dropping it successful in the past?
       return l_success_rate > SUCCESS_THRES;
     }
 
@@ -336,32 +334,20 @@ bool h_inductive_generalizer::should_try_drop(expr_ref &lit) {
     SASSERT(false);
   } break;
   case 4: {
-    /*
-      only use the success rate of dropping the lit so far
-     */
-    float seen = m_lit2count[lit].first;
-    float success = m_lit2count[lit].second;
-    float l_success_rate = success / seen;
     // was dropping it successful in the past?
-    return l_success_rate > SUCCESS_THRES;
+    return lit_success_rate(lit) > SUCCESS_THRES;
   } break;
   case 5: {
     /*
       like heu 3, but stochastic
      */
-    float seen = m_lit2count[lit].first;
-    float success = m_lit2count[lit].second;
-    float l_success_rate = success / seen;
+    double l_success_rate = lit_success_rate(lit);
 
-    // is a new lit. use 2nd heuristic
-    if (seen == 1) {
-      float g_success_rate = (m_1st_seen_can_drop - 1) /
-                           (m_1st_seen_cannot_drop + m_1st_seen_can_drop - 2);
-
-      return yesno(g_success_rate);
+    if (l_success_rate == -1) {
+      // is a new lit. use 2nd heuristic
+      return yesno(m_lit_st.fst_seen_success_rate());
     } else {
-      // not a new lit
-      // was dropping it successful in the past?
+      // not a new lit. was dropping it successful in the past?
       return yesno(l_success_rate);
     }
 
@@ -371,19 +357,37 @@ bool h_inductive_generalizer::should_try_drop(expr_ref &lit) {
   } break;
   case 6: {
     /*
-      like heu 4, but stochastic
-     */
-    float seen = m_lit2count[lit].first;
-    float success = m_lit2count[lit].second;
-    float l_success_rate = success / seen;
 
-    // not enough data. Try to drop.
-    if (m_1st_seen_cannot_drop + m_1st_seen_can_drop < m_threshold) {
-      return true;
+     */
+    if (m_lit2count[lit]->index < 10 &&
+        m_lit2count[lit]->success_rate() < 0.2) {
+      return false;
     }
-    // was dropping it successful in the past?
-    return yesno(l_success_rate);
+
+    return true;
   } break;
+  case 7: {
+    /*
+
+     */
+    if (m_lit2count[lit]->index < 10 &&
+        m_lit2count[lit]->success_rate() < 0.2) {
+        return yesno(m_lit2count[lit]->success_rate());
+    }
+
+    return true;
+  } break;
+  case 42: {
+      /*
+        query the model
+       */
+      std::stringstream ss_lit;
+      ss_lit<<lit;
+      const bool answer = m_grpc_conn.QueryLemma(ss_lit.str());
+      
+      STRACE("spacer.h_ind_gen", tout << "answer:" << answer <<"\n";);
+      return answer;
+  }
   }
   // default value
   return true;
@@ -393,25 +397,45 @@ void h_inductive_generalizer::increase_lit_count(expr_ref &lit) {
   if (m_lit2count.contains(lit)) {
     STRACE("spacer.h_ind_gen", tout << "LIT:" << lit << " exists."
                                     << "\n";);
-    m_lit2count[lit].first++;
+    m_lit2count[lit]->seen++;
   } else {
     STRACE("spacer.h_ind_gen", tout << "LIT:" << lit
                                     << " doesnt exist. Adding to lit2time"
                                     << "\n";);
-    m_lit2count.insert(lit, std::pair<unsigned, unsigned>(1, 0));
+    lit_info *l_i = alloc(lit_info);
+    l_i->seen = 1;
+    l_i->success = 0;
+    l_i->index = m_lit2count.size();
+
+    m_lit2count.insert(lit, l_i);
     m_lits.push_back(lit);
   }
 }
 
+double h_inductive_generalizer::lit_success_rate(expr_ref &lit) {
+  /*
+    return -1 if this is the first time we see the lit
+    otherwise returns it success rate of dropping this lit so far
+   */
+
+  double seen = m_lit2count[lit]->seen;
+  double success = m_lit2count[lit]->success;
+
+  if (seen == 1) {
+    return -1;
+  }
+  return success / seen;
+}
+
 void h_inductive_generalizer::dump_lit_count() {
-  for (obj_map<expr, std::pair<unsigned, unsigned>>::iterator it =
-           m_lit2count.begin();
+  for (obj_map<expr, lit_info *>::iterator it = m_lit2count.begin();
        it != m_lit2count.end(); it++) {
-    float seen = it->m_value.first;
-    float success = it->m_value.second;
-    float ratio = success / seen;
-    STRACE("spacer.h_ind_gen", tout << mk_pp(it->m_key, m) << ": seen: " << seen
-                                    << ", "
+    float seen = it->m_value->seen;
+    float success = it->m_value->success;
+    float ratio = it->m_value->success_rate();
+    STRACE("spacer.h_ind_gen", tout << mk_pp(it->m_key, m) << "\n"
+                                    << ": index:" << it->m_value->index
+                                    << ": seen: " << seen << ", "
                                     << "drop successfully: " << success << ", "
                                     << "success ratio:" << ratio << "\n";);
   }

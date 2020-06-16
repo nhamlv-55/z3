@@ -23,6 +23,7 @@ Revision History:
 #include "ast/arith_decl_plugin.h"
 #include "muz/spacer/spacer_context.h"
 
+#include "muz/spacer/spacer_grpc_bridge.h"
 namespace spacer {
 
 // can be used to check whether produced core is really implied by
@@ -85,11 +86,50 @@ class h_inductive_generalizer : public lemma_generalizer {
     }
   };
 
+  struct literal_stats {
+    unsigned fst_seen_can_drop;
+    unsigned fst_seen_cannot_drop;
+
+    literal_stats() { reset(); }
+
+    void reset() {
+      fst_seen_can_drop = 0;
+      fst_seen_cannot_drop = 0;
+    }
+
+    double fst_seen_success_rate() {
+      if ((fst_seen_can_drop + fst_seen_cannot_drop) == 0) {
+        return 0;
+      }
+      return double(fst_seen_can_drop) /
+             double(fst_seen_can_drop + fst_seen_cannot_drop);
+    }
+
+    unsigned n_lits() { return fst_seen_can_drop + fst_seen_cannot_drop; }
+  };
+
+  struct lit_info {
+    unsigned seen;
+    unsigned success;
+    unsigned index;
+
+    lit_info() { reset(); }
+
+    void reset() {
+      seen = 1;
+      success = 0;
+      index = -1;
+    }
+
+    double success_rate() { return double(success) / double(seen); }
+
+  };
+
   // to flip a coin
   random_gen m_random;
   // first value in the vector is how many times we have seen the lit so far.
   // second value is how many times we were able to drop it
-  obj_map<expr, std::pair<unsigned, unsigned>> m_lit2count;
+  obj_map<expr, lit_info*> m_lit2count;
   ast_manager &m;
   expr_ref_vector m_lits;
   // unsigned m_lemma_counter = 0; // How many lemmas have we generalized so
@@ -99,24 +139,25 @@ class h_inductive_generalizer : public lemma_generalizer {
 
   unsigned m_threshold; // How many lemmas should we have seen before activating
                         // the heuristic
-  // to keep track of how many times we were able to drop the newly seen lit so
-  // far
-  float m_1st_seen_can_drop = 1;
-  float m_1st_seen_cannot_drop = 1;
 
   const float SUCCESS_THRES = 0.7;
 
+  unsigned m_lemmas_sent = 0;
+  bool m_1st_query = true; //we need to dump a seed smt2 file. After dumping, set this flag to false
   unsigned m_failure_limit;
   bool m_array_only;
   stats m_st;
 
+  literal_stats m_lit_st;
+  GrpcClient m_grpc_conn;
 public:
   h_inductive_generalizer(context &ctx, unsigned failure_limit,
                           unsigned threshold, unsigned heu_index,
                           unsigned random_seed)
       : lemma_generalizer(ctx), m_failure_limit(failure_limit),
         m(ctx.get_ast_manager()), m_lits(m), m_threshold(threshold),
-        m_random(random_seed), m_heu_index(heu_index) {
+        m_random(random_seed), m_heu_index(heu_index),
+        m_grpc_conn(grpc::CreateChannel("localhost:50051", grpc::InsecureChannelCredentials())){
     STRACE("spacer.h_ind_gen", tout << "Create h_indgen"
                                     << "\n";);
   }
@@ -126,6 +167,9 @@ public:
   void collect_statistics(statistics &st) const override;
   void reset_statistics() override { m_st.reset(); }
   void increase_lit_count(expr_ref &lit);
+  double lit_success_rate(
+      expr_ref &lit); // return -1 if this is the first time we see
+                      // the lit. Other wise return the success rate
   void dump_lit_count();
   bool should_try_drop(expr_ref &lit);
   bool yesno(float prob); // return true with probability prob
