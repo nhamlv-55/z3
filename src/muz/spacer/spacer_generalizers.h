@@ -56,6 +56,7 @@ class lemma_bool_inductive_generalizer : public lemma_generalizer {
     bool m_array_only;
     stats m_st;
     bool m_use_expansion; // whether to try literal expansion or not. Default = True
+    bool m_1st_query = true; //we need to dump a seed smt2 file. After dumping, set this flag to false
   public:
     lemma_bool_inductive_generalizer(context &ctx, unsigned failure_limit,
                                      bool use_expansion = true,
@@ -171,7 +172,7 @@ public:
       expr_ref &lit); // return -1 if this is the first time we see
                       // the lit. Other wise return the success rate
   void dump_lit_count();
-  bool should_try_drop(expr_ref &lit);
+  bool should_try_drop(const expr_ref_vector &cube, const std::vector<int> &kept_lits, const int &checking_lit, const std::vector<int> &to_be_checked_lits); 
   bool yesno(float prob); // return true with probability prob
 };
 

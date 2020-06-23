@@ -89,6 +89,13 @@ void lemma_bool_inductive_generalizer::operator()(lemma_ref &lemma) {
 
     unsigned i = 0, num_failures = 0;
 
+    //bootstrapping to get a pool_solver smt2 file. Should only run once
+    if(m_1st_query && cube.size() > 1){
+        TRACE("spacer.ind_gen", tout << "Bootstrapping...\n";);
+
+        pt.check_inductive(lemma->level(), cube, uses_level, weakness, true);
+        m_1st_query = false;
+    }
     //FOR DEBUGGING ONLY
     // pt.check_inductive(lemma->level(), cube, uses_level, weakness, true);
     while (i < cube.size() &&
@@ -159,11 +166,10 @@ void lemma_bool_inductive_generalizer::operator()(lemma_ref &lemma) {
          }
     }
 
-    if (dirty) { //temporary disable dirty check to dump all lemmas
-    // if(true){
-        TRACE("spacer.ind_gen",
-               tout << "Generalized from:\n" << mk_and(lemma->get_cube())
-               << "\ninto\n" << mk_and(cube) << "\n";);
+    TRACE("spacer.ind_gen",
+          tout << "Generalized from:\n" << mk_and(lemma->get_cube())
+          << "\ninto\n" << mk_and(cube) << "\n";);
+    if (dirty) {
         lemma->update_cube(lemma->get_pob(), cube);
         SASSERT(uses_level >= lemma->level());
         lemma->set_level(uses_level);
@@ -212,6 +218,8 @@ void h_inductive_generalizer::operator()(lemma_ref &lemma) {
 
   unsigned i = 0, num_failures = 0;
 
+  std::vector<int> kept_lits{};
+  std::vector<int> to_be_checked_lits{};
   if(m_1st_query && cube.size() > 1){
       TRACE("spacer.h_ind_gen", tout << "Bootstrapping...\n";);
 
@@ -225,7 +233,7 @@ void h_inductive_generalizer::operator()(lemma_ref &lemma) {
     increase_lit_count(lit);
 
     //generally we want to drop lit that can be drop in the past
-    if (should_try_drop(lit)) {
+    if (should_try_drop(cube, kept_lits, i, to_be_checked_lits)) {
       cube[i] = true_expr;
       if (cube.size() > 1 &&
           pt.check_inductive(lemma->level(), cube, uses_level, weakness)) {
@@ -294,103 +302,110 @@ bool h_inductive_generalizer::yesno(float prob){
     return flipped_value < prob;
 }
 
-bool h_inductive_generalizer::should_try_drop(expr_ref &lit) {
-  // not enough data. Try to drop.
-  if (m_lit_st.n_lits() < m_threshold) {
-    return true;
-  }
-  // enough data, use heuristics
-  switch (m_heu_index) {
-  case 1: {
-    // temporary change to >=1 to see if it matches no heuristics
-    return m_lit2count[lit]->seen >= 1;
-  } break;
-  case 2:
-    /*keep the ratio of 1st seen lits that can be drop, and make a guess
-     * based on that*/
-    {
-      if (m_lit2count[lit]->seen > 1) {
+bool h_inductive_generalizer::should_try_drop(const expr_ref_vector &cube, const std::vector<int> &kept_lits, const int &checking_lit, const std::vector<int> &to_be_checked_lits) {
+    expr_ref lit(m);
+    lit = cube.get(checking_lit);
+    // not enough data. Try to drop.
+    if (m_lit_st.n_lits() < m_threshold) {
         return true;
-      }
-      return yesno(m_lit_st.fst_seen_success_rate());
     }
-    break;
-  case 3: {
-    /*
-      if not a new lit, use the success rate of dropping the lit so far
-      if a new lit, use 2nd heuristic.
-     */
-    double l_success_rate = lit_success_rate(lit);
+    // enough data, use heuristics
+    switch (m_heu_index) {
+    case 1: {
+        // temporary change to >=1 to see if it matches no heuristics
+        return m_lit2count[lit]->seen >= 1;
+    } break;
+    case 2:
+        /*keep the ratio of 1st seen lits that can be drop, and make a guess
+         * based on that*/
+        {
+            if (m_lit2count[lit]->seen > 1) {
+                return true;
+            }
+            return yesno(m_lit_st.fst_seen_success_rate());
+        }
+        break;
+    case 3: {
+        /*
+          if not a new lit, use the success rate of dropping the lit so far
+          if a new lit, use 2nd heuristic.
+        */
+        double l_success_rate = lit_success_rate(lit);
 
-    if (l_success_rate == -1) {
-      // is a new lit. use 2nd heuristic
-      return yesno(m_lit_st.fst_seen_success_rate());
-    } else {
-      // not a new lit.was dropping it successful in the past?
-      return l_success_rate > SUCCESS_THRES;
-    }
+        if (l_success_rate == -1) {
+            // is a new lit. use 2nd heuristic
+            return yesno(m_lit_st.fst_seen_success_rate());
+        } else {
+            // not a new lit.was dropping it successful in the past?
+            return l_success_rate > SUCCESS_THRES;
+        }
 
-    // this line should never be reached;
-    SASSERT(false);
-  } break;
-  case 4: {
-    // was dropping it successful in the past?
-    return lit_success_rate(lit) > SUCCESS_THRES;
-  } break;
-  case 5: {
-    /*
-      like heu 3, but stochastic
-     */
-    double l_success_rate = lit_success_rate(lit);
+        // this line should never be reached;
+        SASSERT(false);
+    } break;
+    case 4: {
+        // was dropping it successful in the past?
+        return lit_success_rate(lit) > SUCCESS_THRES;
+    } break;
+    case 5: {
+        /*
+          like heu 3, but stochastic
+        */
+        double l_success_rate = lit_success_rate(lit);
 
-    if (l_success_rate == -1) {
-      // is a new lit. use 2nd heuristic
-      return yesno(m_lit_st.fst_seen_success_rate());
-    } else {
-      // not a new lit. was dropping it successful in the past?
-      return yesno(l_success_rate);
-    }
+        if (l_success_rate == -1) {
+            // is a new lit. use 2nd heuristic
+            return yesno(m_lit_st.fst_seen_success_rate());
+        } else {
+            // not a new lit. was dropping it successful in the past?
+            return yesno(l_success_rate);
+        }
 
-    // this line should never be reached;
-    SASSERT(false);
-    return true;
-  } break;
-  case 6: {
-    /*
+        // this line should never be reached;
+        SASSERT(false);
+        return true;
+    } break;
+    case 6: {
+        /*
 
-     */
-    if (m_lit2count[lit]->index < 10 &&
-        m_lit2count[lit]->success_rate() < 0.2) {
-      return false;
-    }
+         */
+        if (m_lit2count[lit]->index < 10 &&
+            m_lit2count[lit]->success_rate() < 0.2) {
+            return false;
+        }
 
-    return true;
-  } break;
-  case 7: {
-    /*
+        return true;
+    } break;
+    case 7: {
+        /*
 
-     */
-    if (m_lit2count[lit]->index < 10 &&
-        m_lit2count[lit]->success_rate() < 0.2) {
-        return yesno(m_lit2count[lit]->success_rate());
-    }
+         */
+        if (m_lit2count[lit]->index < 10 &&
+            m_lit2count[lit]->success_rate() < 0.2) {
+            return yesno(m_lit2count[lit]->success_rate());
+        }
 
-    return true;
-  } break;
-  case 42: {
-      /*
-        query the model
-       */
-      std::stringstream ss_lit;
-      ss_lit<<lit;
-      const bool answer = m_grpc_conn.QueryLemma(ss_lit.str());
+        return true;
+    } break;
+    case 42: {
+        /*
+          query the model
+          Need to send:
+          lemma
+          kept_lits
+          checking_lit
+          to_be_checked_lits
+        */
+        std::stringstream ss_lem;
+        ss_lem<<mk_and(cube);
+        const bool answer = m_grpc_conn.QueryModel(ss_lem.str(), kept_lits, checking_lit, to_be_checked_lits);
       
-      STRACE("spacer.h_ind_gen", tout << "answer:" << answer <<"\n";);
-      return answer;
-  }
-  }
-  // default value
-  return true;
+        STRACE("spacer.h_ind_gen", tout << "answer:" << answer <<"\n";);
+        return answer;
+    }
+    }
+    // default value
+    return true;
 }
 
 void h_inductive_generalizer::increase_lit_count(expr_ref &lit) {

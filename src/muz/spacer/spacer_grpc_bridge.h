@@ -34,7 +34,7 @@ using indgen_conn::Greeter;
 using indgen_conn::Lemma;
 using indgen_conn::Ack;
 
-using indgen_conn::Literal;
+using indgen_conn::Query;
 using indgen_conn::Answer;
 
 class GrpcClient {
@@ -96,10 +96,18 @@ public:
             return "RPC failed";
         }
     }
-    bool QueryLemma(const std::string& lit){
+    bool QueryModel(const std::string& lemma,
+                    const std::vector<int> kept_lits, const int checking_lit, const std::vector<int> to_be_checked_lits){
         // Data we are sending to the server.
-        Literal request;
-        request.set_literal(lit);
+        Query request;
+        request.set_lemma(lemma);
+        for (auto it = begin (kept_lits); it != end (kept_lits); ++it) {
+            request.add_kept_lits(*it);
+        }
+        for (auto it = begin (to_be_checked_lits); it != end (to_be_checked_lits); ++it) {
+            request.add_to_be_checked_lits(*it);
+        }
+        request.set_checking_lit(checking_lit);
         // Container for the data we expect from the server.
         Answer ans;
 
@@ -108,11 +116,11 @@ public:
         ClientContext context;
 
         // The actual RPC.
-        Status status = stub_->QueryLemma(&context, request, &ans);
+        Status status = stub_->QueryModel(&context, request, &ans);
 
         // Act upon its status.
         if (status.ok()) {
-            return ans.answer();
+            return ans.answer()[0] > 0;
         } else {
             return true;
         }
