@@ -166,9 +166,11 @@ void lemma_bool_inductive_generalizer::operator()(lemma_ref &lemma) {
          }
     }
 
-    TRACE("spacer.ind_gen",
-          tout << "Generalized from:\n" << mk_and(lemma->get_cube())
-          << "\ninto\n" << mk_and(cube) << "\n";);
+    if(cube.size()>1){ // do not dump data if there is no final "pair"
+        TRACE("spacer.ind_gen",
+              tout << "Generalized from:\n" << mk_and(lemma->get_cube())
+              << "\ninto\n" << mk_and(cube) << "\n";);
+    }
     if (dirty) {
         lemma->update_cube(lemma->get_pob(), cube);
         SASSERT(uses_level >= lemma->level());
@@ -220,72 +222,200 @@ void h_inductive_generalizer::operator()(lemma_ref &lemma) {
 
   std::vector<int> kept_lits{};
   std::vector<int> to_be_checked_lits{};
+
+  expr_ref_vector final_cube(m);
+  //init to_be_checked_lits to be [0...lemma->get_cube.size()]
+  for(int idx = 0; idx < lemma->get_cube().size(); idx++){
+      to_be_checked_lits.push_back(idx);
+  }
+
+
+  //Bootstrapping to generate the first pool_solver.smt2 file
   if(m_1st_query && cube.size() > 1){
       TRACE("spacer.h_ind_gen", tout << "Bootstrapping...\n";);
 
       pt.check_inductive(lemma->level(), cube, uses_level, weakness, true);
       m_1st_query = false;
   }
-  while (i < cube.size() &&
-         (!m_failure_limit || num_failures < m_failure_limit)) {
-    expr_ref lit(m);
-    lit = cube.get(i);
-    increase_lit_count(lit);
 
-    //generally we want to drop lit that can be drop in the past
-    if (should_try_drop(cube, kept_lits, i, to_be_checked_lits)) {
-      cube[i] = true_expr;
-      if (cube.size() > 1 &&
-          pt.check_inductive(lemma->level(), cube, uses_level, weakness)) {
-        num_failures = 0;
-        dirty = true;
-        for (i = 0; i < cube.size() && processed.contains(cube.get(i)); ++i)
-          ;
-        // drop successful. check and increase fst_seen_can_drop
-        if (m_lit2count[lit]->seen == 1) {
-          m_lit_st.fst_seen_can_drop++;
-        }
-        // increase the success counter
-        m_lit2count[lit]->success++;
-      } else {
-        // drop unsuccessful. check and increase fst_seen_cannot_drop
-        if (m_lit2count[lit]->seen == 1) {
-          m_lit_st.fst_seen_cannot_drop++;
-        }
-        cube[i] = lit;
-        processed.push_back(lit);
-        ++num_failures;
-        ++m_st.num_failures;
-        ++i;
+  // std::cout<<"kept_lits: [";
+  // for(int it: kept_lits){
+  //     std::cout<<it<<" ";
+  // }
+  // std::cout<<"]"<<std::endl;
+  // std::cout<<"to_be_checked_lits: [";
+  // for(int it: to_be_checked_lits){
+  //     std::cout<<it<<" ";
+  // }
+  // std::cout<<"]"<<std::endl;
+  int checking_lit;
+  //new ind gen loop
+  while (to_be_checked_lits.size()>0 && // not done yet
+         (!m_failure_limit || num_failures < m_failure_limit)) {
+      //pop left
+      checking_lit = to_be_checked_lits.front();
+      to_be_checked_lits.erase(to_be_checked_lits.begin());
+
+      if (should_try_drop(lemma->get_cube(), kept_lits, checking_lit, to_be_checked_lits)){
+          //****Build the cube to check for inductive****
+
+          //the new cube is the masked version of the original cube
+          expr_ref_vector new_cube(m);
+          new_cube.append(lemma->get_cube());
+          //Mask the new_cube.
+          //If the lits is not in kept_lits, and not in to_be_checked_lits, set it to True
+          for(int idx = 0; idx < lemma->get_cube().size(); idx++){
+              //is it in kept_lits?
+              bool in_kept_lits = false;
+              for(int it: kept_lits){
+                  if(idx==it){
+                      in_kept_lits = true;
+                      break;
+                  }
+              }
+
+              //is it in to_be_checked_lits
+              bool in_to_be_checked_lits = false;
+              for(int it: to_be_checked_lits){
+                  if(idx==it){
+                      in_to_be_checked_lits = true;
+                      break;
+                  }
+              }
+              if(!in_to_be_checked_lits && !in_kept_lits){
+                  new_cube[idx] = true_expr;
+              }
+          }
+          //set the checking_lit to true
+          new_cube[checking_lit] = true_expr;
+
+          //****Finish building the new_cube to be checked****
+
+          STRACE("spacer.h_ind_gen", tout << "new cube:" << mk_and(new_cube) <<"\n";);
+          //check inductiveness of the new_cube
+          bool dropped = pt.check_inductive(lemma->level(), new_cube, uses_level, weakness);
+
+          if(dropped){
+              STRACE("spacer.h_ind_gen", tout << "drop successfully" <<"\n";);
+              dirty = true;
+              num_failures = 0;
+              //new_cube should be smaller or stay the same.
+              //try to not update kept_lits and to_be_checked_lits first
+              //update kept_lits
+              std::vector<int> new_kept_lits{};
+              for (int it: kept_lits){
+                  if(new_cube.contains(lemma->get_cube()[it])){
+                      new_kept_lits.push_back(it);
+                  }
+              }
+
+              kept_lits = new_kept_lits;
+
+              //update to_be_checked_lits
+              std::vector<int> new_to_be_checked_lits{};
+              for (int it: to_be_checked_lits){
+                  if(new_cube.contains(lemma->get_cube()[it])){
+                      new_to_be_checked_lits.push_back(it);
+                  }
+              }
+              to_be_checked_lits = new_to_be_checked_lits;
+          }else{
+              kept_lits.push_back(checking_lit);
+              ++num_failures;
+          }
+      }else{
+          //push checking_lit to kept_lits
+          kept_lits.push_back(checking_lit);
+          //remove from 
       }
-    } else {
-        // skip dropping this literal
-        ++i;
-        TRACE("spacer.h_ind_gen", tout << lit << ": "
-                                       << "Do not try to drop."
-                                       << "\n";);
-        // should we decrease seen_counter?
-        m_lit2count[lit]->seen --;
-    }
+      
   }
-  if (dirty) {
-    TRACE("spacer.h_ind_gen", tout << "Generalized from:\n"
-                                   << mk_and(lemma->get_cube()) << "\ninto\n"
-                                   << mk_and(cube) << "\n";);
-    lemma->update_cube(lemma->get_pob(), cube);
-    SASSERT(uses_level >= lemma->level());
-    lemma->set_level(uses_level);
+
+  if(dirty){
+      //final cube should be kept_lits
+      for(int it: kept_lits){
+          final_cube.push_back(lemma->get_cube()[it]);
+      }
+
+      TRACE("spacer.h_ind_gen", tout << "Generalized from:\n"
+                                       << mk_and(lemma->get_cube()) << "\ninto\n"
+                                       << mk_and(final_cube) << "\n";);
+      SASSERT(uses_level >= lemma->level());
+      lemma->update_cube(lemma->get_pob(), final_cube);
+      lemma->set_level(uses_level);
   }
-  TRACE("spacer.h_ind_gen", tout << "m_1sT_query:"<<m_1st_query<<"\n";);
+
+  //OLD LOOP
+  // while (i < cube.size() &&
+  //        (!m_failure_limit || num_failures < m_failure_limit)) {
+  //   expr_ref lit(m);
+  //   lit = cube.get(i);
+  //   increase_lit_count(lit);
+
+  //   //generally we want to drop lit that can be drop in the past
+    
+
+
+  //   if (should_try_drop(lemma->get_cube(), kept_lits, i, to_be_checked_lits)) {
+  //     cube[i] = true_expr;
+  //     if (cube.size() > 1 &&
+  //         pt.check_inductive(lemma->level(), cube, uses_level, weakness)) {
+  //       num_failures = 0;
+  //       dirty = true;
+  //       for (i = 0; i < cube.size() && processed.contains(cube.get(i)); ++i)
+  //         ;
+  //       // // drop successful. check and increase fst_seen_can_drop
+  //       // if (m_lit2count[lit]->seen == 1) {
+  //       //   m_lit_st.fst_seen_can_drop++;
+  //       // }
+  //       // // increase the success counter
+  //       // m_lit2count[lit]->success++;
+
+
+  //     } else {
+  //       // drop unsuccessful. check and increase fst_seen_cannot_drop
+  //       // if (m_lit2count[lit]->seen == 1) {
+  //       //   m_lit_st.fst_seen_cannot_drop++;
+  //       // }
+  //       //push i to kept_lits
+  //       kept_lits.push_back(i);
+
+  //       cube[i] = lit;
+  //       processed.push_back(lit);
+  //       ++num_failures;
+  //       ++m_st.num_failures;
+  //       ++i;
+  //     }
+  //   } else {
+  //       //push i to kept_lits
+  //       kept_lits.push_back(i);
+  //       // skip dropping this literal
+  //       ++i;
+  //       TRACE("spacer.h_ind_gen", tout << lit << ": "
+  //                                      << "Do not try to drop."
+  //                                      << "\n";);
+  //       // should we decrease seen_counter?
+  //       m_lit2count[lit]->seen --;
+  //   }
+  // }
+  // if (dirty) {
+  //   TRACE("spacer.h_ind_gen", tout << "Generalized from:\n"
+  //                                  << mk_and(lemma->get_cube()) << "\ninto\n"
+  //                                  << mk_and(cube) << "\n";);
+  //   lemma->update_cube(lemma->get_pob(), cube);
+  //   SASSERT(uses_level >= lemma->level());
+  //   lemma->set_level(uses_level);
+  // }
+  // TRACE("spacer.h_ind_gen", tout << "m_1sT_query:"<<m_1st_query<<"\n";);
   //send datapoint to server
-  if(m_lemmas_sent < 1000 ){
-      std::stringstream ss_lemma_before;
-      std::stringstream ss_lemma_after;
-      ss_lemma_before<<mk_and(lemma->get_cube());
-      ss_lemma_after<<mk_and(cube);
-      m_grpc_conn.SendLemma(ss_lemma_before.str(), ss_lemma_after.str());
-      m_lemmas_sent ++;
-  }
+  // if(m_lemmas_sent < 1000 ){
+  //     std::stringstream ss_lemma_before;
+  //     std::stringstream ss_lemma_after;
+  //     ss_lemma_before<<mk_and(lemma->get_cube());
+  //     ss_lemma_after<<mk_and(cube);
+  //     m_grpc_conn.SendLemma(ss_lemma_before.str(), ss_lemma_after.str());
+  //     m_lemmas_sent ++;
+  // }
   // dump_lit_count();
 }
 void h_inductive_generalizer::collect_statistics(statistics &st) const {
@@ -306,9 +436,14 @@ bool h_inductive_generalizer::should_try_drop(const expr_ref_vector &cube, const
     expr_ref lit(m);
     lit = cube.get(checking_lit);
     // not enough data. Try to drop.
-    if (m_lit_st.n_lits() < m_threshold) {
-        return true;
+    // if (m_lit_st.n_lits() < m_threshold) {
+    //     return true;
+    // }
+    // has only 1 lit, return false
+    if (cube.size()==1){
+        return false;
     }
+
     // enough data, use heuristics
     switch (m_heu_index) {
     case 1: {
@@ -396,10 +531,20 @@ bool h_inductive_generalizer::should_try_drop(const expr_ref_vector &cube, const
           checking_lit
           to_be_checked_lits
         */
+        //No lits being kept yet. Always try to drop
+        if(kept_lits.size()==0){
+            std::cout << "answer:" << "true" <<"\n";
+            return true;
+        }
+
         std::stringstream ss_lem;
         ss_lem<<mk_and(cube);
-        const bool answer = m_grpc_conn.QueryModel(ss_lem.str(), kept_lits, checking_lit, to_be_checked_lits);
+        const bool answer = m_grpc_conn.QueryModel(ss_lem.str(),//the string repr of the original lemma
+                                                   kept_lits,// the lits that are checked and kept, (a list of int)
+                                                   checking_lit,// the lit that we are checking (one int)
+                                                   to_be_checked_lits);//not using this for now
       
+        std::cout << "answer:" << answer <<"\n";
         STRACE("spacer.h_ind_gen", tout << "answer:" << answer <<"\n";);
         return answer;
     }

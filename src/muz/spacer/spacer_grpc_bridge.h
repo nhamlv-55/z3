@@ -101,9 +101,12 @@ public:
         // Data we are sending to the server.
         Query request;
         request.set_lemma(lemma);
+        std::cout<<"sending over"<<"kept lits:[";
         for (auto it = begin (kept_lits); it != end (kept_lits); ++it) {
             request.add_kept_lits(*it);
+            std::cout<<*it<<" ";
         }
+        std::cout<<"]; checking_lit:"<<checking_lit<<std::endl;
         for (auto it = begin (to_be_checked_lits); it != end (to_be_checked_lits); ++it) {
             request.add_to_be_checked_lits(*it);
         }
@@ -120,7 +123,12 @@ public:
 
         // Act upon its status.
         if (status.ok()) {
-            return ans.answer()[0] > 0;
+            std::cout<<"received: [";
+            for (int i =0; i<ans.answer_size(); i++) {
+                std::cout<< ans.answer(i);
+            }
+            std::cout <<"]"<<std::endl;
+            return ans.answer().size()>0;
         } else {
             return true;
         }
