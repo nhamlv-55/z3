@@ -172,7 +172,8 @@ public:
       expr_ref &lit); // return -1 if this is the first time we see
                       // the lit. Other wise return the success rate
   void dump_lit_count();
-  bool should_try_drop(const expr_ref_vector &cube, const std::vector<int> &kept_lits, const int &checking_lit, const std::vector<int> &to_be_checked_lits); 
+  bool should_try_drop(const expr_ref_vector &cube, const std::vector<unsigned> &kept_lits, const unsigned &checking_lit, const std::vector<unsigned> &to_be_checked_lits); 
+  std::vector<unsigned> query_mask(const expr_ref_vector &cube, const std::vector<unsigned> &kept_lits, const std::vector<unsigned> &to_be_checked_lits);
   bool yesno(float prob); // return true with probability prob
 };
 

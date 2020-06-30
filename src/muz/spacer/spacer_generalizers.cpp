@@ -190,6 +190,236 @@ void lemma_bool_inductive_generalizer::collect_statistics(statistics &st) const
 // ------------------------
 // h_inductive_generalizer
 /// Inductive generalization by dropping and expanding literals with some heuristics
+// void h_inductive_generalizer::operator()(lemma_ref &lemma) {
+//   if (lemma->get_cube().empty())
+//     return;
+//   TRACE("spacer.h_ind_gen", tout << "LEMMA:\n"
+//                                  << mk_and(lemma->get_cube()) << "\n";);
+
+
+//   STRACE("spacer.h_ind_gen",
+//          tout << "1st_seen_can_drop:" << m_lit_st.fst_seen_can_drop << ", "
+//               << "1st_seen_cannot_drop:" << m_lit_st.fst_seen_cannot_drop
+//               << ", "
+//               << "ratio:" << m_lit_st.fst_seen_success_rate() << "\n";);
+//   scoped_watch _w_(m_st.watch);
+
+//   unsigned uses_level;
+//   pred_transformer &pt = lemma->get_pob()->pt();
+//   ast_manager &m = pt.get_ast_manager();
+
+//   expr_ref_vector cube(m);
+//   cube.append(lemma->get_cube());
+
+//   bool dirty = false;
+//   expr_ref true_expr(m.mk_true(), m);
+//   ptr_vector<expr> processed;
+//   expr_ref_vector extra_lits(m);
+
+//   unsigned weakness = lemma->weakness();
+
+//   unsigned i = 0, num_failures = 0;
+
+//   std::vector<int> kept_lits{};
+//   std::vector<int> to_be_checked_lits{};
+
+//   expr_ref_vector final_cube(m);
+//   //init to_be_checked_lits to be [0...lemma->get_cube.size()]
+//   for(int idx = 0; idx < lemma->get_cube().size(); idx++){
+//       to_be_checked_lits.push_back(idx);
+//   }
+
+
+//   //Bootstrapping to generate the first pool_solver.smt2 file
+//   if(m_1st_query && cube.size() > 1){
+//       TRACE("spacer.h_ind_gen", tout << "Bootstrapping...\n";);
+
+//       pt.check_inductive(lemma->level(), cube, uses_level, weakness, true);
+//       m_1st_query = false;
+//   }
+
+//   // std::cout<<"kept_lits: [";
+//   // for(int it: kept_lits){
+//   //     std::cout<<it<<" ";
+//   // }
+//   // std::cout<<"]"<<std::endl;
+//   // std::cout<<"to_be_checked_lits: [";
+//   // for(int it: to_be_checked_lits){
+//   //     std::cout<<it<<" ";
+//   // }
+//   // std::cout<<"]"<<std::endl;
+//   int checking_lit;
+//   //new ind gen loop
+//   while (to_be_checked_lits.size()>0 && // not done yet
+//          (!m_failure_limit || num_failures < m_failure_limit)) {
+//       //pop left
+//       checking_lit = to_be_checked_lits.front();
+//       to_be_checked_lits.erase(to_be_checked_lits.begin());
+
+//       if (should_try_drop(lemma->get_cube(), kept_lits, checking_lit, to_be_checked_lits)){
+//           //****Build the cube to check for inductive****
+
+//           //the new cube is the masked version of the original cube
+//           expr_ref_vector new_cube(m);
+//           new_cube.append(lemma->get_cube());
+//           //Mask the new_cube.
+//           //If the lits is not in kept_lits, and not in to_be_checked_lits, set it to True
+//           for(int idx = 0; idx < lemma->get_cube().size(); idx++){
+//               //is it in kept_lits?
+//               bool in_kept_lits = false;
+//               for(int it: kept_lits){
+//                   if(idx==it){
+//                       in_kept_lits = true;
+//                       break;
+//                   }
+//               }
+
+//               //is it in to_be_checked_lits
+//               bool in_to_be_checked_lits = false;
+//               for(int it: to_be_checked_lits){
+//                   if(idx==it){
+//                       in_to_be_checked_lits = true;
+//                       break;
+//                   }
+//               }
+//               if(!in_to_be_checked_lits && !in_kept_lits){
+//                   new_cube[idx] = true_expr;
+//               }
+//           }
+//           //set the checking_lit to true
+//           new_cube[checking_lit] = true_expr;
+
+//           //****Finish building the new_cube to be checked****
+
+//           STRACE("spacer.h_ind_gen", tout << "new cube:" << mk_and(new_cube) <<"\n";);
+//           //check inductiveness of the new_cube
+//           bool dropped = pt.check_inductive(lemma->level(), new_cube, uses_level, weakness);
+
+//           if(dropped){
+//               STRACE("spacer.h_ind_gen", tout << "drop successfully" <<"\n";);
+//               dirty = true;
+//               num_failures = 0;
+//               //new_cube should be smaller or stay the same.
+//               //try to not update kept_lits and to_be_checked_lits first
+//               //update kept_lits
+//               std::vector<int> new_kept_lits{};
+//               for (int it: kept_lits){
+//                   if(new_cube.contains(lemma->get_cube()[it])){
+//                       new_kept_lits.push_back(it);
+//                   }
+//               }
+
+//               kept_lits = new_kept_lits;
+
+//               //update to_be_checked_lits
+//               std::vector<int> new_to_be_checked_lits{};
+//               for (int it: to_be_checked_lits){
+//                   if(new_cube.contains(lemma->get_cube()[it])){
+//                       new_to_be_checked_lits.push_back(it);
+//                   }
+//               }
+//               to_be_checked_lits = new_to_be_checked_lits;
+//           }else{
+//               kept_lits.push_back(checking_lit);
+//               ++num_failures;
+//           }
+//       }else{
+//           //push checking_lit to kept_lits
+//           kept_lits.push_back(checking_lit);
+//           //remove from 
+//       }
+      
+//   }
+
+//   if(dirty){
+//       //final cube should be kept_lits
+//       for(int it: kept_lits){
+//           final_cube.push_back(lemma->get_cube()[it]);
+//       }
+
+//       TRACE("spacer.h_ind_gen", tout << "Generalized from:\n"
+//                                        << mk_and(lemma->get_cube()) << "\ninto\n"
+//                                        << mk_and(final_cube) << "\n";);
+//       SASSERT(uses_level >= lemma->level());
+//       lemma->update_cube(lemma->get_pob(), final_cube);
+//       lemma->set_level(uses_level);
+//   }
+
+//   //OLD LOOP
+//   // while (i < cube.size() &&
+//   //        (!m_failure_limit || num_failures < m_failure_limit)) {
+//   //   expr_ref lit(m);
+//   //   lit = cube.get(i);
+//   //   increase_lit_count(lit);
+
+//   //   //generally we want to drop lit that can be drop in the past
+    
+
+
+//   //   if (should_try_drop(lemma->get_cube(), kept_lits, i, to_be_checked_lits)) {
+//   //     cube[i] = true_expr;
+//   //     if (cube.size() > 1 &&
+//   //         pt.check_inductive(lemma->level(), cube, uses_level, weakness)) {
+//   //       num_failures = 0;
+//   //       dirty = true;
+//   //       for (i = 0; i < cube.size() && processed.contains(cube.get(i)); ++i)
+//   //         ;
+//   //       // // drop successful. check and increase fst_seen_can_drop
+//   //       // if (m_lit2count[lit]->seen == 1) {
+//   //       //   m_lit_st.fst_seen_can_drop++;
+//   //       // }
+//   //       // // increase the success counter
+//   //       // m_lit2count[lit]->success++;
+
+
+//   //     } else {
+//   //       // drop unsuccessful. check and increase fst_seen_cannot_drop
+//   //       // if (m_lit2count[lit]->seen == 1) {
+//   //       //   m_lit_st.fst_seen_cannot_drop++;
+//   //       // }
+//   //       //push i to kept_lits
+//   //       kept_lits.push_back(i);
+
+//   //       cube[i] = lit;
+//   //       processed.push_back(lit);
+//   //       ++num_failures;
+//   //       ++m_st.num_failures;
+//   //       ++i;
+//   //     }
+//   //   } else {
+//   //       //push i to kept_lits
+//   //       kept_lits.push_back(i);
+//   //       // skip dropping this literal
+//   //       ++i;
+//   //       TRACE("spacer.h_ind_gen", tout << lit << ": "
+//   //                                      << "Do not try to drop."
+//   //                                      << "\n";);
+//   //       // should we decrease seen_counter?
+//   //       m_lit2count[lit]->seen --;
+//   //   }
+//   // }
+//   // if (dirty) {
+//   //   TRACE("spacer.h_ind_gen", tout << "Generalized from:\n"
+//   //                                  << mk_and(lemma->get_cube()) << "\ninto\n"
+//   //                                  << mk_and(cube) << "\n";);
+//   //   lemma->update_cube(lemma->get_pob(), cube);
+//   //   SASSERT(uses_level >= lemma->level());
+//   //   lemma->set_level(uses_level);
+//   // }
+//   // TRACE("spacer.h_ind_gen", tout << "m_1sT_query:"<<m_1st_query<<"\n";);
+//   //send datapoint to server
+//   // if(m_lemmas_sent < 1000 ){
+//   //     std::stringstream ss_lemma_before;
+//   //     std::stringstream ss_lemma_after;
+//   //     ss_lemma_before<<mk_and(lemma->get_cube());
+//   //     ss_lemma_after<<mk_and(cube);
+//   //     m_grpc_conn.SendLemma(ss_lemma_before.str(), ss_lemma_after.str());
+//   //     m_lemmas_sent ++;
+//   // }
+//   // dump_lit_count();
+// }
+
+    //NEW () using both positive model and negative model
 void h_inductive_generalizer::operator()(lemma_ref &lemma) {
   if (lemma->get_cube().empty())
     return;
@@ -220,8 +450,8 @@ void h_inductive_generalizer::operator()(lemma_ref &lemma) {
 
   unsigned i = 0, num_failures = 0;
 
-  std::vector<int> kept_lits{};
-  std::vector<int> to_be_checked_lits{};
+  std::vector<unsigned> kept_lits;
+  std::vector<unsigned> to_be_checked_lits;
 
   expr_ref_vector final_cube(m);
   //init to_be_checked_lits to be [0...lemma->get_cube.size()]
@@ -238,97 +468,102 @@ void h_inductive_generalizer::operator()(lemma_ref &lemma) {
       m_1st_query = false;
   }
 
-  // std::cout<<"kept_lits: [";
-  // for(int it: kept_lits){
-  //     std::cout<<it<<" ";
-  // }
-  // std::cout<<"]"<<std::endl;
-  // std::cout<<"to_be_checked_lits: [";
-  // for(int it: to_be_checked_lits){
-  //     std::cout<<it<<" ";
-  // }
-  // std::cout<<"]"<<std::endl;
-  int checking_lit;
-  //new ind gen loop
-  while (to_be_checked_lits.size()>0 && // not done yet
-         (!m_failure_limit || num_failures < m_failure_limit)) {
-      //pop left
-      checking_lit = to_be_checked_lits.front();
-      to_be_checked_lits.erase(to_be_checked_lits.begin());
+  unsigned checking_lit;
+  bool query_model = false;
+  std::vector<unsigned> mask;
 
-      if (should_try_drop(lemma->get_cube(), kept_lits, checking_lit, to_be_checked_lits)){
+  //new ind gen loop
+  while (to_be_checked_lits.size()>0){ // not done yet
+      //made_progress is false iff the cube constructed from the returned mask is not inductive (a wasted round)
+      //if made_progress is true, attempt to use the model
+      //if made_progress is false, try to drop it the old way
+      //the new cube is the masked version of the original cube
+      expr_ref_vector new_cube(m);
+      new_cube.append(lemma->get_cube());
+      checking_lit = to_be_checked_lits.front();
+
+      if(query_model){
+          TRACE("spacer.h_ind_gen", tout << "query model\n";);
+          mask = query_mask(lemma->get_cube(), kept_lits, to_be_checked_lits);
           //****Build the cube to check for inductive****
 
-          //the new cube is the masked version of the original cube
-          expr_ref_vector new_cube(m);
-          new_cube.append(lemma->get_cube());
-          //Mask the new_cube.
-          //If the lits is not in kept_lits, and not in to_be_checked_lits, set it to True
-          for(int idx = 0; idx < lemma->get_cube().size(); idx++){
-              //is it in kept_lits?
-              bool in_kept_lits = false;
-              for(int it: kept_lits){
-                  if(idx==it){
-                      in_kept_lits = true;
-                      break;
-                  }
-              }
-
-              //is it in to_be_checked_lits
-              bool in_to_be_checked_lits = false;
-              for(int it: to_be_checked_lits){
-                  if(idx==it){
-                      in_to_be_checked_lits = true;
-                      break;
-                  }
-              }
-              if(!in_to_be_checked_lits && !in_kept_lits){
+          //mask the new cube using the mask returned by the model
+          for(int idx=0; idx < lemma->get_cube().size(); idx++){
+              if(mask[idx]==0){
                   new_cube[idx] = true_expr;
               }
           }
-          //set the checking_lit to true
-          new_cube[checking_lit] = true_expr;
-
-          //****Finish building the new_cube to be checked****
-
-          STRACE("spacer.h_ind_gen", tout << "new cube:" << mk_and(new_cube) <<"\n";);
-          //check inductiveness of the new_cube
-          bool dropped = pt.check_inductive(lemma->level(), new_cube, uses_level, weakness);
-
-          if(dropped){
-              STRACE("spacer.h_ind_gen", tout << "drop successfully" <<"\n";);
-              dirty = true;
-              num_failures = 0;
-              //new_cube should be smaller or stay the same.
-              //try to not update kept_lits and to_be_checked_lits first
-              //update kept_lits
-              std::vector<int> new_kept_lits{};
-              for (int it: kept_lits){
-                  if(new_cube.contains(lemma->get_cube()[it])){
-                      new_kept_lits.push_back(it);
-                  }
-              }
-
-              kept_lits = new_kept_lits;
-
-              //update to_be_checked_lits
-              std::vector<int> new_to_be_checked_lits{};
-              for (int it: to_be_checked_lits){
-                  if(new_cube.contains(lemma->get_cube()[it])){
-                      new_to_be_checked_lits.push_back(it);
-                  }
-              }
-              to_be_checked_lits = new_to_be_checked_lits;
-          }else{
-              kept_lits.push_back(checking_lit);
-              ++num_failures;
-          }
+          std::cout<<"new_cube from model:"<< mk_and(new_cube)<<"\n";
       }else{
-          //push checking_lit to kept_lits
-          kept_lits.push_back(checking_lit);
-          //remove from 
+          //FALLBACK mode
+          //try to drop just one lit
+          TRACE("spacer.h_ind_gen", tout << "drop just one lit\n";);
+          //pop left
+          to_be_checked_lits.erase(to_be_checked_lits.begin());
+
+          //mask the new cube using current kept_lits, checking_lit, and to_be_checked_lits
+          for(int idx=0; idx < lemma->get_cube().size(); idx++){
+              //if in kept_lits, skip
+              if (std::find(kept_lits.begin(), kept_lits.end(), idx) != kept_lits.end()){ continue;}
+              //if in to_be_checked_lits, skip
+              if (std::find(to_be_checked_lits.begin(), to_be_checked_lits.end(), idx) != to_be_checked_lits.end()){continue;}
+              //else, mask it
+              new_cube[idx] = true_expr;
+          }
+          //set the checking_lit to be true as well
+          new_cube[checking_lit] = true_expr;
+          //****Finish building the new_cube to be checked****
+          std::cout<<"new_cube from fallback:"<< mk_and(new_cube)<<"\n";
+
       }
-      
+      //****Finish building the new_cube to be checked****
+
+      STRACE("spacer.h_ind_gen", tout << "new cube:" << mk_and(new_cube) <<"\n";);
+      bool dropped = pt.check_inductive(lemma->level(), new_cube, uses_level, weakness);
+
+      if(dropped){
+          STRACE("spacer.h_ind_gen", tout << "drop successfully" <<"\n";);
+          //set query_model to true to try using the model for the next round
+          query_model = true;
+
+          dirty = true;
+          num_failures = 0;
+          //new_cube should be smaller or stay the same.
+          //try to not update kept_lits and to_be_checked_lits first
+          //update kept_lits
+          std::vector<unsigned> new_kept_lits;
+          for (int it: kept_lits){
+              if(new_cube.contains(lemma->get_cube()[it])){
+                  new_kept_lits.push_back(it);
+              }
+          }
+
+          kept_lits = new_kept_lits;
+
+          //update to_be_checked_lits
+          std::vector<unsigned> new_to_be_checked_lits;
+          for (int it: to_be_checked_lits){
+              if(new_cube.contains(lemma->get_cube()[it])){
+                  new_to_be_checked_lits.push_back(it);
+              }
+          }
+          to_be_checked_lits = new_to_be_checked_lits;
+      }else{
+          //fail to drop
+          //if we are in query_model mode, set it to false
+          if(query_model){
+              query_model = false;
+          }else{//in fallback mode. in this case, we push the checkinglit to kept_lits. Also set query_model to true
+              query_model = true;
+              kept_lits.push_back(checking_lit);
+          }
+
+          ++num_failures;
+      }
+
+      //always set query_model to false if kept_lits.size() == 0
+      if (kept_lits.size() ==0 ){ query_model = false;}
+
   }
 
   if(dirty){
@@ -337,6 +572,7 @@ void h_inductive_generalizer::operator()(lemma_ref &lemma) {
           final_cube.push_back(lemma->get_cube()[it]);
       }
 
+      std::cout<<"FINAL CUBE:"<<mk_and(final_cube)<<"\n";
       TRACE("spacer.h_ind_gen", tout << "Generalized from:\n"
                                        << mk_and(lemma->get_cube()) << "\ninto\n"
                                        << mk_and(final_cube) << "\n";);
@@ -345,79 +581,25 @@ void h_inductive_generalizer::operator()(lemma_ref &lemma) {
       lemma->set_level(uses_level);
   }
 
-  //OLD LOOP
-  // while (i < cube.size() &&
-  //        (!m_failure_limit || num_failures < m_failure_limit)) {
-  //   expr_ref lit(m);
-  //   lit = cube.get(i);
-  //   increase_lit_count(lit);
-
-  //   //generally we want to drop lit that can be drop in the past
-    
-
-
-  //   if (should_try_drop(lemma->get_cube(), kept_lits, i, to_be_checked_lits)) {
-  //     cube[i] = true_expr;
-  //     if (cube.size() > 1 &&
-  //         pt.check_inductive(lemma->level(), cube, uses_level, weakness)) {
-  //       num_failures = 0;
-  //       dirty = true;
-  //       for (i = 0; i < cube.size() && processed.contains(cube.get(i)); ++i)
-  //         ;
-  //       // // drop successful. check and increase fst_seen_can_drop
-  //       // if (m_lit2count[lit]->seen == 1) {
-  //       //   m_lit_st.fst_seen_can_drop++;
-  //       // }
-  //       // // increase the success counter
-  //       // m_lit2count[lit]->success++;
-
-
-  //     } else {
-  //       // drop unsuccessful. check and increase fst_seen_cannot_drop
-  //       // if (m_lit2count[lit]->seen == 1) {
-  //       //   m_lit_st.fst_seen_cannot_drop++;
-  //       // }
-  //       //push i to kept_lits
-  //       kept_lits.push_back(i);
-
-  //       cube[i] = lit;
-  //       processed.push_back(lit);
-  //       ++num_failures;
-  //       ++m_st.num_failures;
-  //       ++i;
-  //     }
-  //   } else {
-  //       //push i to kept_lits
-  //       kept_lits.push_back(i);
-  //       // skip dropping this literal
-  //       ++i;
-  //       TRACE("spacer.h_ind_gen", tout << lit << ": "
-  //                                      << "Do not try to drop."
-  //                                      << "\n";);
-  //       // should we decrease seen_counter?
-  //       m_lit2count[lit]->seen --;
-  //   }
-  // }
-  // if (dirty) {
-  //   TRACE("spacer.h_ind_gen", tout << "Generalized from:\n"
-  //                                  << mk_and(lemma->get_cube()) << "\ninto\n"
-  //                                  << mk_and(cube) << "\n";);
-  //   lemma->update_cube(lemma->get_pob(), cube);
-  //   SASSERT(uses_level >= lemma->level());
-  //   lemma->set_level(uses_level);
-  // }
-  // TRACE("spacer.h_ind_gen", tout << "m_1sT_query:"<<m_1st_query<<"\n";);
-  //send datapoint to server
-  // if(m_lemmas_sent < 1000 ){
-  //     std::stringstream ss_lemma_before;
-  //     std::stringstream ss_lemma_after;
-  //     ss_lemma_before<<mk_and(lemma->get_cube());
-  //     ss_lemma_after<<mk_and(cube);
-  //     m_grpc_conn.SendLemma(ss_lemma_before.str(), ss_lemma_after.str());
-  //     m_lemmas_sent ++;
-  // }
-  // dump_lit_count();
 }
+
+std::vector<unsigned> h_inductive_generalizer::query_mask(const expr_ref_vector &cube, const std::vector<unsigned> &kept_lits, const std::vector<unsigned> &to_be_checked_lits) {
+    std::vector<unsigned> mask;
+    //has only 1 lit
+
+    TRACE("spacer.h_ind_gen", tout << "cube"<<mk_and(cube)<<"\n";);
+    if (cube.size()==1){
+        mask.push_back(0);
+        return mask;
+    }
+    std::stringstream ss_lem;
+    ss_lem<<mk_and(cube);
+    mask = m_grpc_conn.QueryMask(ss_lem.str(),//the string repr of the original lemma
+                                 kept_lits,// the lits that are checked and kept, (a list of int)
+                                 to_be_checked_lits);//not using this for now
+    return mask;
+}
+
 void h_inductive_generalizer::collect_statistics(statistics &st) const {
   st.update("time.spacer.solve.reach.gen.bool_ind", m_st.watch.get_seconds());
   st.update("bool inductive gen", m_st.count);
@@ -432,7 +614,7 @@ bool h_inductive_generalizer::yesno(float prob){
     return flipped_value < prob;
 }
 
-bool h_inductive_generalizer::should_try_drop(const expr_ref_vector &cube, const std::vector<int> &kept_lits, const int &checking_lit, const std::vector<int> &to_be_checked_lits) {
+bool h_inductive_generalizer::should_try_drop(const expr_ref_vector &cube, const std::vector<unsigned> &kept_lits, const unsigned &checking_lit, const std::vector<unsigned> &to_be_checked_lits) {
     expr_ref lit(m);
     lit = cube.get(checking_lit);
     // not enough data. Try to drop.

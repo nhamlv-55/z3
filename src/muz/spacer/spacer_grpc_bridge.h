@@ -97,7 +97,7 @@ public:
         }
     }
     bool QueryModel(const std::string& lemma,
-                    const std::vector<int> kept_lits, const int checking_lit, const std::vector<int> to_be_checked_lits){
+                    const std::vector<unsigned> kept_lits, const int checking_lit, const std::vector<unsigned> to_be_checked_lits){
         // Data we are sending to the server.
         Query request;
         request.set_lemma(lemma);
@@ -131,6 +131,48 @@ public:
             return ans.answer().size()>0;
         } else {
             return true;
+        }
+    }
+    std::vector<unsigned> QueryMask(const std::string& lemma,
+                    const std::vector<unsigned> kept_lits, const std::vector<unsigned> to_be_checked_lits){
+        std::vector<unsigned> result;
+        // Data we are sending to the server.
+        Query request;
+        request.set_lemma(lemma);
+        std::cout<<"sending over "<<"kept lits:[";
+        for (auto it = begin (kept_lits); it != end (kept_lits); ++it) {
+            request.add_kept_lits(*it);
+            std::cout<<*it<<" ";
+        }
+        std::cout<<"], to_be_checked_lits: [";
+        for (auto it = begin (to_be_checked_lits); it != end (to_be_checked_lits); ++it) {
+            request.add_to_be_checked_lits(*it);
+            std::cout<<*it<<" ";
+        }
+        std::cout<<"]\n";
+        //set a dummy checking_lit
+        request.set_checking_lit(1337);
+        // Container for the data we expect from the server.
+        Answer ans;
+
+        // Context for the client. It could be used to convey extra information to
+        // the server and/or tweak certain RPC behaviors.
+        ClientContext context;
+
+        // The actual RPC.
+        Status status = stub_->QueryMask(&context, request, &ans);
+
+        // Act upon its status.
+        if (status.ok()) {
+            std::cout<<"received: [";
+            for (int i =0; i<ans.answer_size(); i++) {
+                result.push_back(ans.answer(i));
+                std::cout<< ans.answer(i);
+            }
+            std::cout <<"]"<<std::endl;
+            return result;
+        } else {
+            return result;
         }
     }
 private:
