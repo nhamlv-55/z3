@@ -36,6 +36,7 @@ using indgen_conn::Ack;
 
 using indgen_conn::Query;
 using indgen_conn::Answer;
+using indgen_conn::FullAnswer;
 
 class GrpcClient {
 public:
@@ -133,8 +134,9 @@ public:
             return true;
         }
     }
-    std::vector<unsigned> QueryMask(const std::string& lemma,
-                    const std::vector<unsigned> kept_lits, const std::vector<unsigned> to_be_checked_lits){
+    bool QueryMask(const std::string& lemma,
+                   std::vector<unsigned> &kept_lits, std::vector<unsigned> &to_be_checked_lits,
+                   std::vector<unsigned> &mask){
         std::vector<unsigned> result;
         // Data we are sending to the server.
         Query request;
@@ -153,7 +155,7 @@ public:
         //set a dummy checking_lit
         request.set_checking_lit(1337);
         // Container for the data we expect from the server.
-        Answer ans;
+        FullAnswer ans;
 
         // Context for the client. It could be used to convey extra information to
         // the server and/or tweak certain RPC behaviors.
@@ -164,15 +166,23 @@ public:
 
         // Act upon its status.
         if (status.ok()) {
-            std::cout<<"received: [";
-            for (int i =0; i<ans.answer_size(); i++) {
-                result.push_back(ans.answer(i));
-                std::cout<< ans.answer(i);
+            if(ans.dirty()){
+                kept_lits.clear();
+                to_be_checked_lits.clear();
+                mask.clear();
+                for (int i =0; i<ans.new_kept_lits_size(); i++) {
+                    kept_lits.push_back(ans.new_kept_lits(i));
+                }
+                for (int i =0; i<ans.new_to_be_checked_lits_size(); i++) {
+                    to_be_checked_lits.push_back(ans.new_to_be_checked_lits(i));
+                }
+                for (int i =0; i<ans.mask_size(); i++) {
+                    mask.push_back(ans.mask(i));
+                }
             }
-            std::cout <<"]"<<std::endl;
-            return result;
+            return ans.dirty();
         } else {
-            return result;
+            return false;
         }
     }
 private:

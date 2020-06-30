@@ -471,7 +471,9 @@ void h_inductive_generalizer::operator()(lemma_ref &lemma) {
   unsigned checking_lit;
   bool query_model = false;
   std::vector<unsigned> mask;
-
+  std::vector<unsigned> new_kept_lits;
+  std::vector<unsigned> new_to_be_checked_lits;
+  bool model_dirty;
   //new ind gen loop
   while (to_be_checked_lits.size()>0){ // not done yet
       //made_progress is false iff the cube constructed from the returned mask is not inductive (a wasted round)
@@ -484,16 +486,27 @@ void h_inductive_generalizer::operator()(lemma_ref &lemma) {
 
       if(query_model){
           TRACE("spacer.h_ind_gen", tout << "query model\n";);
-          mask = query_mask(lemma->get_cube(), kept_lits, to_be_checked_lits);
-          //****Build the cube to check for inductive****
-
-          //mask the new cube using the mask returned by the model
-          for(int idx=0; idx < lemma->get_cube().size(); idx++){
-              if(mask[idx]==0){
-                  new_cube[idx] = true_expr;
+          new_kept_lits.clear();
+          new_to_be_checked_lits.clear();
+          
+          model_dirty = query_mask(lemma->get_cube(), kept_lits, to_be_checked_lits, mask);
+          if(model_dirty){
+              std::cout<<"mask:";
+              for(unsigned i: mask){
+                  std::cout<<i<<",";
               }
+              std::cout<<"\n";
+              //mask the new cube using the mask returned by the model
+              for(int idx=0; idx < lemma->get_cube().size(); idx++){
+                  if(mask[idx]==0){
+                      new_cube[idx] = true_expr;
+                  }
+              }
+              std::cout<<"new_cube from model:"<< mk_and(new_cube)<<"\n";
+          }else{
+              query_model = false;
+              continue;
           }
-          std::cout<<"new_cube from model:"<< mk_and(new_cube)<<"\n";
       }else{
           //FALLBACK mode
           //try to drop just one lit
@@ -531,7 +544,8 @@ void h_inductive_generalizer::operator()(lemma_ref &lemma) {
           //new_cube should be smaller or stay the same.
           //try to not update kept_lits and to_be_checked_lits first
           //update kept_lits
-          std::vector<unsigned> new_kept_lits;
+          new_kept_lits.clear();
+          new_to_be_checked_lits.clear();
           for (int it: kept_lits){
               if(new_cube.contains(lemma->get_cube()[it])){
                   new_kept_lits.push_back(it);
@@ -583,21 +597,17 @@ void h_inductive_generalizer::operator()(lemma_ref &lemma) {
 
 }
 
-std::vector<unsigned> h_inductive_generalizer::query_mask(const expr_ref_vector &cube, const std::vector<unsigned> &kept_lits, const std::vector<unsigned> &to_be_checked_lits) {
-    std::vector<unsigned> mask;
-    //has only 1 lit
-
+bool h_inductive_generalizer::query_mask(const expr_ref_vector &cube, std::vector<unsigned> &kept_lits, std::vector<unsigned> &to_be_checked_lits, std::vector<unsigned> &mask) {
     TRACE("spacer.h_ind_gen", tout << "cube"<<mk_and(cube)<<"\n";);
     if (cube.size()==1){
-        mask.push_back(0);
-        return mask;
+        return false;
     }
     std::stringstream ss_lem;
     ss_lem<<mk_and(cube);
-    mask = m_grpc_conn.QueryMask(ss_lem.str(),//the string repr of the original lemma
+    return m_grpc_conn.QueryMask(ss_lem.str(),//the string repr of the original lemma
                                  kept_lits,// the lits that are checked and kept, (a list of int)
-                                 to_be_checked_lits);//not using this for now
-    return mask;
+                                 to_be_checked_lits,
+                                 mask);
 }
 
 void h_inductive_generalizer::collect_statistics(statistics &st) const {
