@@ -473,77 +473,48 @@ void h_inductive_generalizer::operator()(lemma_ref &lemma) {
   std::vector<unsigned> mask;
   std::vector<unsigned> new_kept_lits;
   std::vector<unsigned> new_to_be_checked_lits;
+  std::vector<unsigned> checking_lits;
   bool model_dirty;
   //new ind gen loop
   while (to_be_checked_lits.size()>0){ // not done yet
+      m_st.count++;
       //made_progress is false iff the cube constructed from the returned mask is not inductive (a wasted round)
       //if made_progress is true, attempt to use the model
       //if made_progress is false, try to drop it the old way
       //the new cube is the masked version of the original cube
       expr_ref_vector new_cube(m);
       new_cube.append(lemma->get_cube());
-      checking_lit = to_be_checked_lits.front();
 
-      if(query_model){
-          TRACE("spacer.h_ind_gen", tout << "query model\n";);
-          new_kept_lits.clear();
-          new_to_be_checked_lits.clear();
-          
-          model_dirty = query_mask(lemma->get_cube(), kept_lits, to_be_checked_lits, mask);
-          if(model_dirty){
-              std::cout<<"mask:";
-              for(unsigned i: mask){
-                  std::cout<<i<<",";
-              }
-              std::cout<<"\n";
-              //mask the new cube using the mask returned by the model
-              for(int idx=0; idx < lemma->get_cube().size(); idx++){
-                  if(mask[idx]==0){
-                      new_cube[idx] = true_expr;
-                  }
-              }
-              std::cout<<"new_cube from model:"<< mk_and(new_cube)<<"\n";
-          }else{
-              query_model = false;
-              continue;
-          }
-      }else{
-          //FALLBACK mode
-          //try to drop just one lit
-          TRACE("spacer.h_ind_gen", tout << "drop just one lit\n";);
-          //pop left
-          to_be_checked_lits.erase(to_be_checked_lits.begin());
+      //delegate all new cube masking to the model
+      model_dirty = query_mask(lemma->get_cube(), kept_lits, to_be_checked_lits, checking_lits, mask);
 
-          //mask the new cube using current kept_lits, checking_lit, and to_be_checked_lits
-          for(int idx=0; idx < lemma->get_cube().size(); idx++){
-              //if in kept_lits, skip
-              if (std::find(kept_lits.begin(), kept_lits.end(), idx) != kept_lits.end()){ continue;}
-              //if in to_be_checked_lits, skip
-              if (std::find(to_be_checked_lits.begin(), to_be_checked_lits.end(), idx) != to_be_checked_lits.end()){continue;}
-              //else, mask it
+      if(model_dirty){m_grpc_info.dirty_requests++;};
+      // std::cout<<"mask:";
+      // for(unsigned i: mask){
+      //     std::cout<<i<<",";
+      // }
+      // std::cout<<"\n";
+      std::cout<<"checking_lits:";
+      for(unsigned i: checking_lits){
+          std::cout<<i<<",";
+      }
+      std::cout<<"\n";      //mask the new cube using the mask returned by the model
+      for(int idx=0; idx < lemma->get_cube().size(); idx++){
+          if(mask[idx]==0){
               new_cube[idx] = true_expr;
           }
-          //set the checking_lit to be true as well
-          new_cube[checking_lit] = true_expr;
-          //****Finish building the new_cube to be checked****
-          std::cout<<"new_cube from fallback:"<< mk_and(new_cube)<<"\n";
-
       }
-      //****Finish building the new_cube to be checked****
-
-      STRACE("spacer.h_ind_gen", tout << "new cube:" << mk_and(new_cube) <<"\n";);
+      std::cout<<"new_cube from model:"<< mk_and(new_cube)<<"\n";
+     
       bool dropped = pt.check_inductive(lemma->level(), new_cube, uses_level, weakness);
 
       if(dropped){
           STRACE("spacer.h_ind_gen", tout << "drop successfully" <<"\n";);
           //set query_model to true to try using the model for the next round
-          query_model = true;
-
-          dirty = true;
-          num_failures = 0;
+          std::cout<<"Drop successfully. New cube is:"<<mk_and(new_cube)<<"\n";
           //new_cube should be smaller or stay the same.
           //try to not update kept_lits and to_be_checked_lits first
-          //update kept_lits
+          //update kept_lits. It has to be updated because there are lits in here that were caused by the P_model, not by failing to drop in the past
           new_kept_lits.clear();
           new_to_be_checked_lits.clear();
           for (int it: kept_lits){
@@ -562,22 +533,23 @@ void h_inductive_generalizer::operator()(lemma_ref &lemma) {
               }
           }
           to_be_checked_lits = new_to_be_checked_lits;
+          dirty = true;
       }else{
-          //fail to drop
-          //if we are in query_model mode, set it to false
-          if(query_model){
-              query_model = false;
-          }else{//in fallback mode. in this case, we push the checkinglit to kept_lits. Also set query_model to true
-              query_model = true;
-              kept_lits.push_back(checking_lit);
+          //update kept_lits
+          //only update kept_lits and to_be_checked_lits if checking_lits size is 1.
+          //There is nothing we can conclude if we fail to drop more than 1 lits at a time
+          if(model_dirty){m_grpc_info.unsuccessful_answers++;}
+
+          if(checking_lits.size()==1){
+              std::cout<<"failed to drop 1 lit. Move it to kept_lits and remove it from to_be_checked_lits"<<"\n";
+              kept_lits.push_back(checking_lits[0]);
+              auto it = find(to_be_checked_lits.begin(),to_be_checked_lits.end(), checking_lits[0]);
+
+              if ( it != to_be_checked_lits.end() )
+                  to_be_checked_lits.erase(it);
           }
-
-          ++num_failures;
+          m_st.num_failures++;
       }
-
-      //always set query_model to false if kept_lits.size() == 0
-      if (kept_lits.size() ==0 ){ query_model = false;}
-
   }
 
   if(dirty){
@@ -594,19 +566,20 @@ void h_inductive_generalizer::operator()(lemma_ref &lemma) {
       lemma->update_cube(lemma->get_pob(), final_cube);
       lemma->set_level(uses_level);
   }
-
+  m_grpc_info.dump();
 }
 
-bool h_inductive_generalizer::query_mask(const expr_ref_vector &cube, std::vector<unsigned> &kept_lits, std::vector<unsigned> &to_be_checked_lits, std::vector<unsigned> &mask) {
+    bool h_inductive_generalizer::query_mask(const expr_ref_vector &cube, std::vector<unsigned> &kept_lits, std::vector<unsigned> &to_be_checked_lits, std::vector<unsigned> &checking_lits, std::vector<unsigned> &mask) {
     TRACE("spacer.h_ind_gen", tout << "cube"<<mk_and(cube)<<"\n";);
-    if (cube.size()==1){
-        return false;
-    }
     std::stringstream ss_lem;
     ss_lem<<mk_and(cube);
+    m_grpc_info.total_requests++;
+
     return m_grpc_conn.QueryMask(ss_lem.str(),//the string repr of the original lemma
+                                 cube.size(),
                                  kept_lits,// the lits that are checked and kept, (a list of int)
                                  to_be_checked_lits,
+                                 checking_lits,
                                  mask);
 }
 
@@ -715,6 +688,7 @@ bool h_inductive_generalizer::should_try_drop(const expr_ref_vector &cube, const
         return true;
     } break;
     case 42: {
+        return true;
         /*
           query the model
           Need to send:
@@ -724,21 +698,21 @@ bool h_inductive_generalizer::should_try_drop(const expr_ref_vector &cube, const
           to_be_checked_lits
         */
         //No lits being kept yet. Always try to drop
-        if(kept_lits.size()==0){
-            std::cout << "answer:" << "true" <<"\n";
-            return true;
-        }
+        // if(kept_lits.size()==0){
+        //     std::cout << "answer:" << "true" <<"\n";
+        //     return true;
+        // }
 
-        std::stringstream ss_lem;
-        ss_lem<<mk_and(cube);
-        const bool answer = m_grpc_conn.QueryModel(ss_lem.str(),//the string repr of the original lemma
-                                                   kept_lits,// the lits that are checked and kept, (a list of int)
-                                                   checking_lit,// the lit that we are checking (one int)
-                                                   to_be_checked_lits);//not using this for now
+        // std::stringstream ss_lem;
+        // ss_lem<<mk_and(cube);
+        // const bool answer = m_grpc_conn.QueryModel(ss_lem.str(),//the string repr of the original lemma
+        //                                            kept_lits,// the lits that are checked and kept, (a list of int)
+        //                                            checking_lit,// the lit that we are checking (one int)
+        //                                            to_be_checked_lits);//not using this for now
       
-        std::cout << "answer:" << answer <<"\n";
-        STRACE("spacer.h_ind_gen", tout << "answer:" << answer <<"\n";);
-        return answer;
+        // std::cout << "answer:" << answer <<"\n";
+        // STRACE("spacer.h_ind_gen", tout << "answer:" << answer <<"\n";);
+        // return answer;
     }
     }
     // default value

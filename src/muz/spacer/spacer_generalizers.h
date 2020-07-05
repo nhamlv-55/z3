@@ -109,22 +109,45 @@ class h_inductive_generalizer : public lemma_generalizer {
     unsigned n_lits() { return fst_seen_can_drop + fst_seen_cannot_drop; }
   };
 
-  struct lit_info {
-    unsigned seen;
-    unsigned success;
-    unsigned index;
+    struct lit_info {
+        unsigned seen;
+        unsigned success;
+        unsigned index;
 
-    lit_info() { reset(); }
+        lit_info() { reset(); }
 
-    void reset() {
-      seen = 1;
-      success = 0;
-      index = -1;
-    }
+        void reset() {
+            seen = 1;
+            success = 0;
+            index = -1;
+        }
 
-    double success_rate() { return double(success) / double(seen); }
+        double success_rate() { return double(success) / double(seen); }
 
-  };
+    };
+
+    struct grpc_info {
+        unsigned total_requests;
+        unsigned dirty_requests;
+        unsigned unsuccessful_answers;
+
+        grpc_info(){reset();}
+
+        void reset(){
+            total_requests = 0;
+            dirty_requests = 0;
+            unsuccessful_answers = 0;
+        }
+
+        void dump(){
+            std::cout<<"total_requests:"<<total_requests<<"\n";
+            std::cout<<"dirty_requests:"<<dirty_requests<<"\n";
+            std::cout<<"unsuccessful_answers:"<<unsuccessful_answers<<"\n";
+
+        }
+
+    };
+
 
   // to flip a coin
   random_gen m_random;
@@ -148,9 +171,10 @@ class h_inductive_generalizer : public lemma_generalizer {
   unsigned m_failure_limit;
   bool m_array_only;
   stats m_st;
-
+  
   literal_stats m_lit_st;
   GrpcClient m_grpc_conn;
+    grpc_info m_grpc_info;
 public:
   h_inductive_generalizer(context &ctx, unsigned failure_limit,
                           unsigned threshold, unsigned heu_index,
@@ -173,7 +197,7 @@ public:
                       // the lit. Other wise return the success rate
   void dump_lit_count();
   bool should_try_drop(const expr_ref_vector &cube, const std::vector<unsigned> &kept_lits, const unsigned &checking_lit, const std::vector<unsigned> &to_be_checked_lits); 
-  bool query_mask(const expr_ref_vector &cube, std::vector<unsigned> &kept_lits, std::vector<unsigned> &to_be_checked_lits, std::vector<unsigned> &mask);
+    bool query_mask(const expr_ref_vector &cube, std::vector<unsigned> &kept_lits, std::vector<unsigned> &to_be_checked_lits, std::vector<unsigned> &checking_lits, std::vector<unsigned> &mask);
   bool yesno(float prob); // return true with probability prob
 };
 
