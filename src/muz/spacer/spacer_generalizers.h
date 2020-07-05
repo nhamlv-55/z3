@@ -178,13 +178,17 @@ class h_inductive_generalizer : public lemma_generalizer {
 public:
   h_inductive_generalizer(context &ctx, unsigned failure_limit,
                           unsigned threshold, unsigned heu_index,
-                          unsigned random_seed)
+                          unsigned random_seed, symbol host_port)
       : lemma_generalizer(ctx), m_failure_limit(failure_limit),
         m(ctx.get_ast_manager()), m_lits(m), m_threshold(threshold),
         m_random(random_seed), m_heu_index(heu_index),
-        m_grpc_conn(grpc::CreateChannel("localhost:50051", grpc::InsecureChannelCredentials())){
+        m_grpc_conn(grpc::CreateChannel(host_port.str(), grpc::InsecureChannelCredentials())){
     STRACE("spacer.h_ind_gen", tout << "Create h_indgen"
                                     << "\n";);
+    STRACE("spacer.h_ind_gen", tout << "Connecting to grpc server at"<<host_port.str()
+           << "\n";);
+
+
   }
   ~h_inductive_generalizer() override {}
   void operator()(lemma_ref &lemma) override;
