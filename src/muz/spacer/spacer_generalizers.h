@@ -75,17 +75,18 @@ class lemma_bool_inductive_generalizer : public lemma_generalizer {
  */
 class h_inductive_generalizer : public lemma_generalizer {
 
-  struct stats {
-    unsigned count;
-    unsigned num_failures;
-    stopwatch watch;
-    stats() { reset(); }
-    void reset() {
-      count = 0;
-      num_failures = 0;
-      watch.reset();
-    }
-  };
+    struct stats {
+        unsigned count;
+        unsigned num_failures;
+        stopwatch watch;
+        stopwatch outside_time_watch;
+        stats() { reset(); }
+        void reset() {
+            count = 0;
+            num_failures = 0;
+            watch.reset();
+        }
+    };
 
   struct literal_stats {
     unsigned fst_seen_can_drop;
@@ -201,7 +202,7 @@ public:
                       // the lit. Other wise return the success rate
   void dump_lit_count();
   bool should_try_drop(const expr_ref_vector &cube, const std::vector<unsigned> &kept_lits, const unsigned &checking_lit, const std::vector<unsigned> &to_be_checked_lits); 
-    bool query_mask(const expr_ref_vector &cube, std::vector<unsigned> &kept_lits, std::vector<unsigned> &to_be_checked_lits, std::vector<unsigned> &checking_lits, std::vector<unsigned> &mask);
+    bool query_mask(const expr_ref_vector &cube, std::vector<unsigned> &kept_lits, std::vector<unsigned> &to_be_checked_lits, std::vector<unsigned> &checking_lits, std::vector<unsigned> &mask, const bool last_ans_success);
   bool yesno(float prob); // return true with probability prob
 };
 

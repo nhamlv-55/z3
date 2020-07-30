@@ -475,6 +475,7 @@ void h_inductive_generalizer::operator()(lemma_ref &lemma) {
   std::vector<unsigned> new_to_be_checked_lits;
   std::vector<unsigned> checking_lits;
   bool model_dirty;
+  bool last_ans_success = false;
   //new ind gen loop
   while (to_be_checked_lits.size()>0){ // not done yet
       m_st.count++;
@@ -486,7 +487,7 @@ void h_inductive_generalizer::operator()(lemma_ref &lemma) {
       new_cube.append(lemma->get_cube());
 
       //delegate all new cube masking to the model
-      model_dirty = query_mask(lemma->get_cube(), kept_lits, to_be_checked_lits, checking_lits, mask);
+      model_dirty = query_mask(lemma->get_cube(), kept_lits, to_be_checked_lits, checking_lits, mask, last_ans_success);
 
       if(model_dirty){m_grpc_info.dirty_requests++;};
       // std::cout<<"mask:";
@@ -509,6 +510,7 @@ void h_inductive_generalizer::operator()(lemma_ref &lemma) {
       bool dropped = pt.check_inductive(lemma->level(), new_cube, uses_level, weakness);
 
       if(dropped){
+          last_ans_success = true;
           STRACE("spacer.h_ind_gen", tout << "drop successfully" <<"\n";);
           //set query_model to true to try using the model for the next round
           std::cout<<"Drop successfully. New cube is:"<<mk_and(new_cube)<<"\n";
@@ -535,6 +537,7 @@ void h_inductive_generalizer::operator()(lemma_ref &lemma) {
           to_be_checked_lits = new_to_be_checked_lits;
           dirty = true;
       }else{
+          last_ans_success = false;
           //update kept_lits
           //only update kept_lits and to_be_checked_lits if checking_lits size is 1.
           //There is nothing we can conclude if we fail to drop more than 1 lits at a time
@@ -559,7 +562,7 @@ void h_inductive_generalizer::operator()(lemma_ref &lemma) {
       }
 
       std::cout<<"FINAL CUBE:"<<mk_and(final_cube)<<"\n";
-      TRACE("spacer.h_ind_gen", tout << "Generalized from:\n"
+      TRACE("spacer.ind_gen", tout << "Generalized from:\n"
                                        << mk_and(lemma->get_cube()) << "\ninto\n"
                                        << mk_and(final_cube) << "\n";);
       SASSERT(uses_level >= lemma->level());
@@ -569,7 +572,8 @@ void h_inductive_generalizer::operator()(lemma_ref &lemma) {
   m_grpc_info.dump();
 }
 
-    bool h_inductive_generalizer::query_mask(const expr_ref_vector &cube, std::vector<unsigned> &kept_lits, std::vector<unsigned> &to_be_checked_lits, std::vector<unsigned> &checking_lits, std::vector<unsigned> &mask) {
+bool h_inductive_generalizer::query_mask(const expr_ref_vector &cube, std::vector<unsigned> &kept_lits, std::vector<unsigned> &to_be_checked_lits, std::vector<unsigned> &checking_lits, std::vector<unsigned> &mask, const bool last_ans_success) {
+    scoped_watch _w_(m_st.outside_time_watch);
     TRACE("spacer.h_ind_gen", tout << "cube"<<mk_and(cube)<<"\n";);
     std::stringstream ss_lem;
     ss_lem<<mk_and(cube);
@@ -580,11 +584,13 @@ void h_inductive_generalizer::operator()(lemma_ref &lemma) {
                                  kept_lits,// the lits that are checked and kept, (a list of int)
                                  to_be_checked_lits,
                                  checking_lits,
-                                 mask);
+                                 mask,
+                                 last_ans_success);
 }
 
 void h_inductive_generalizer::collect_statistics(statistics &st) const {
   st.update("time.spacer.solve.reach.gen.bool_ind", m_st.watch.get_seconds());
+  st.update("time.spacer.solve.reach.gen.bool_ind.outside_spacer", m_st.outside_time_watch.get_seconds());
   st.update("bool inductive gen", m_st.count);
   st.update("bool inductive gen failures", m_st.num_failures);
 }
