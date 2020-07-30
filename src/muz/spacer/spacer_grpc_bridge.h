@@ -136,7 +136,8 @@ public:
     // }
     bool QueryMask(const std::string& lemma, const unsigned lemma_size,
                    std::vector<unsigned> &kept_lits, std::vector<unsigned> &to_be_checked_lits, std::vector<unsigned> &checking_lits,
-                   std::vector<unsigned> &mask){
+                   std::vector<unsigned> &mask,
+                   const bool last_ans_success){
         std::vector<unsigned> result;
         // Data we are sending to the server.
         Query request;
@@ -153,6 +154,7 @@ public:
             std::cout<<*it<<" ";
         }
         std::cout<<"]\n";
+        request.set_last_ans_success(last_ans_success);
         // Container for the data we expect from the server.
         FullAnswer ans;
 
